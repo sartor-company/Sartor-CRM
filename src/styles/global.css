@@ -33,6 +33,7 @@ html,body,#root{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;back
 #sb::-webkit-scrollbar-thumb{background:rgba(255,255,255,.25);border-radius:3px}
 .sb-logo{padding:13px 16px 11px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.12);flex-shrink:0}
 .sb-mark{width:32px;height:32px;background:var(--G);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:var(--N);font-family:'Fraunces',serif;flex-shrink:0}
+.brand-logo{object-fit:cover;background:transparent;display:block}
 .sb-nm{font-size:14px;font-weight:700;color:#fff;font-family:'Fraunces',serif;letter-spacing:-.2px;line-height:1.2}
 .sb-dm{font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.8px}
 .ns{padding:6px 8px 2px}

@@ -16,7 +16,7 @@ export function Sidebar() {
   return (
     <nav id="sb" className={sidebarOpen ? 'open' : ''}>
       <div className="sb-logo">
-        <div className="sb-mark">S</div>
+        <img className="sb-mark brand-logo" src="/sartor-logo.jpg" alt="Sartor Health logo" width={32} height={32} />
         <div>
           <div className="sb-nm">SartorCRM</div>
           <div className="sb-dm">crm.sartor.ng</div>
