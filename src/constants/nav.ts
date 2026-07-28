@@ -25,6 +25,7 @@ export const NAV_CONFIG: Record<RoleId, NavEntry[]> = {
     { type: 'item', id: 'reconciliation', ico: 'hash', lbl: 'Stock Reconciliation', tier: ['snp', '360'] },
     { type: 'item', id: 'suppliers', ico: 'building', lbl: 'Suppliers', tier: ['snp', '360'] },
     { type: 'sep', lbl: 'Field & Intelligence' },
+    { type: 'item', id: 'redeem-gift', ico: 'qr-code', lbl: 'Redeem Gift' },
     { type: 'item', id: 'visits', ico: 'store', lbl: 'Store Visits' },
     { type: 'item', id: 'intel', ico: 'search', lbl: 'Market Intelligence' },
     { type: 'sep', lbl: 'Team & Reports' },
@@ -46,6 +47,7 @@ export const NAV_CONFIG: Record<RoleId, NavEntry[]> = {
     { type: 'sep', lbl: 'Operations' },
     { type: 'item', id: 'drivers', ico: 'car', lbl: 'Drivers', tier: ['snp', '360'] },
     { type: 'sep', lbl: 'Field & Intelligence' },
+    { type: 'item', id: 'redeem-gift', ico: 'qr-code', lbl: 'Redeem Gift' },
     { type: 'item', id: 'visits', ico: 'store', lbl: 'Store Visits' },
     { type: 'item', id: 'intel', ico: 'search', lbl: 'Market Intelligence' },
     { type: 'item', id: 'settings', ico: 'settings', lbl: 'Settings' },
@@ -53,6 +55,7 @@ export const NAV_CONFIG: Record<RoleId, NavEntry[]> = {
   rep: [
     { type: 'item', id: 'dash', ico: 'home', lbl: 'Dashboard' },
     { type: 'sep', lbl: 'My Work' },
+    { type: 'item', id: 'redeem-gift', ico: 'qr-code', lbl: 'Redeem Gift' },
     { type: 'item', id: 'leads', ico: 'users', lbl: 'My Leads' },
     { type: 'item', id: 'customers', ico: 'star', lbl: 'Customers' },
     { type: 'item', id: 'lpos', ico: 'clipboard', lbl: 'My LPOs' },
@@ -90,6 +93,7 @@ export const NAV_CONFIG: Record<RoleId, NavEntry[]> = {
   merch: [
     { type: 'item', id: 'merch-dash', ico: 'home', lbl: 'My Dashboard' },
     { type: 'sep', lbl: 'Field Work' },
+    { type: 'item', id: 'redeem-gift', ico: 'qr-code', lbl: 'Redeem Gift' },
     { type: 'item', id: 'visits', ico: 'store', lbl: 'Store Visits' },
     { type: 'item', id: 'intel', ico: 'search', lbl: 'Market Intel' },
   ],
@@ -123,6 +127,7 @@ export const PAGE_TITLES: Record<PageId, string> = {
   'reorder-alerts': 'Reorder Alerts',
   reconciliation: 'Stock Reconciliation',
   suppliers: 'Supplier Management',
+  'redeem-gift': 'Redeem Gift',
 };
 
 export function getDefaultPageForRole(role: RoleId): PageId {

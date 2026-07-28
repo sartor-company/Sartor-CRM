@@ -37,7 +37,8 @@ export type PageId =
   | 'grn-log'
   | 'reorder-alerts'
   | 'reconciliation'
-  | 'suppliers';
+  | 'suppliers'
+  | 'redeem-gift';
 
 export type ModalId =
   | 'add-lead'

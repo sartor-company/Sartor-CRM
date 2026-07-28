@@ -24,6 +24,7 @@ export function useRoleGates() {
       showTierUpgrade: isCeo,
       showLocPin: ['ceo', 'admin', 'rep', 'merch'].includes(role),
       showNav: ['ceo', 'admin', 'rep', 'merch', 'driver'].includes(role),
+      showGiftRedeem: ['ceo', 'admin', 'rep', 'merch'].includes(role),
     }),
     [role, isCeoAdmin, isCeo, isFinance, isRep, isWH, isInv],
   );

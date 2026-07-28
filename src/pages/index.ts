@@ -15,6 +15,7 @@ export { default as PackLposPage } from './PackLposPage';
 export { default as DriversPage } from './DriversPage';
 export { default as DeliveriesPage } from './DeliveriesPage';
 export { default as VisitsPage } from './VisitsPage';
+export { default as RedeemGiftPage } from './RedeemGiftPage';
 export { default as IntelPage } from './IntelPage';
 export { default as FinanceDashPage } from './FinanceDashPage';
 export { default as ReturnsPage } from './ReturnsPage';

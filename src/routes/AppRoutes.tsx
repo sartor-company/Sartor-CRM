@@ -30,6 +30,7 @@ import {
   TeamPage,
   VisitsPage,
   WarehousesPage,
+  RedeemGiftPage,
 } from '../pages';
 import { ModalsRoot } from '../modals/ModalsRoot';
 
@@ -60,6 +61,7 @@ export function AppRoutes() {
           <Route path="drivers" element={<DriversPage />} />
           <Route path="deliveries" element={<DeliveriesPage />} />
           <Route path="visits" element={<VisitsPage />} />
+          <Route path="redeem-gift" element={<RedeemGiftPage />} />
           <Route path="intel" element={<IntelPage />} />
           <Route path="payment-queue" element={<FinanceDashPage />} />
           <Route path="returns" element={<ReturnsPage />} />

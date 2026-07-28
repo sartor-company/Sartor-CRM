@@ -30,6 +30,7 @@ export const PAGE_PATHS: Record<PageId, string> = {
   'reorder-alerts': '/reorder-alerts',
   reconciliation: '/reconciliation',
   suppliers: '/suppliers',
+  'redeem-gift': '/redeem-gift',
 };
 
 const pathToPage = Object.fromEntries(
