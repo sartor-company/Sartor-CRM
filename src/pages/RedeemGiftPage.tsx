@@ -200,7 +200,7 @@ export default function RedeemGiftPage() {
           <div className="rg-card">
             <div className="rg-ct">Redeem a gift</div>
             <div className="rg-rep-line">
-              {meta.name} · {meta.role}
+              Signed in as <strong>{meta.name}</strong> · {meta.role}
             </div>
             <div className="rg-seg">
               <button type="button" className={mode === 'qr' ? 'on' : ''} onClick={() => setMode('qr')}>
