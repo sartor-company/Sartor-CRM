@@ -9,6 +9,7 @@ import {
 import { ROLE_META } from '../constants/roles';
 import { PageHead, RoleGate } from '../components/ui';
 import { useApp } from '../context/AppContext';
+import { useContinuousQrScan } from '../hooks/useContinuousQrScan';
 import { useRoleGates } from '../hooks/useRoleGates';
 import './RedeemGiftPage.css';
 
@@ -41,9 +42,21 @@ export default function RedeemGiftPage() {
     remaining?: number;
   } | null>(null);
   const [camError, setCamError] = useState('');
+  const [camReady, setCamReady] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const pinInputRef = useRef<HTMLInputElement>(null);
+  const busyRef = useRef(false);
+  const sheetOpenRef = useRef(false);
+  const poolsRef = useRef(pools);
+  poolsRef.current = pools;
+
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+  useEffect(() => {
+    sheetOpenRef.current = Boolean(sheet);
+  }, [sheet]);
 
   const loadSidePanels = useCallback(async () => {
     try {
@@ -67,15 +80,21 @@ export default function RedeemGiftPage() {
     if (!showGiftRedeem || mode !== 'qr') {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      setCamReady(false);
       return;
     }
 
     let cancelled = false;
     (async () => {
       setCamError('');
+      setCamReady(false);
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
           audio: false,
         });
         if (cancelled) {
@@ -86,9 +105,11 @@ export default function RedeemGiftPage() {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           await videoRef.current.play().catch(() => undefined);
+          setCamReady(true);
         }
       } catch {
         setCamError('Camera access denied or unavailable. Use Enter PIN instead.');
+        setCamReady(false);
       }
     })();
 
@@ -96,92 +117,72 @@ export default function RedeemGiftPage() {
       cancelled = true;
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
+      setCamReady(false);
     };
   }, [showGiftRedeem, mode]);
 
-  const showResult = (result: RedeemGiftResult, fallbackCode: string) => {
-    const kind = outcomeKind(result.outcome);
-    setSheet({
-      kind,
-      title: result.title || (kind === 'ok' ? 'Redemption successful' : 'Unable to redeem'),
-      subtitle: result.subtitle || '',
-      rows: (result.rows || []).map((r) => [r[0], r[1]] as [string, string]),
-      giftName: result.giftName,
-      remaining: result.remaining,
-    });
-    if (!result.rows?.length && kind === 'bad') {
-      setSheet((s) =>
-        s
-          ? {
-              ...s,
-              rows: [
-                ['Code entered', fallbackCode],
-                ['Method', mode === 'qr' ? 'QR Scan' : 'Manual Entry'],
-              ],
-            }
-          : s,
-      );
-    }
-  };
-
-  const processCode = async (raw: string, method: 'QR_SCAN' | 'MANUAL_ENTRY') => {
-    const code = raw.trim().toUpperCase();
-    if (!code || busy) return;
-    setBusy(true);
-    try {
-      const result = await giftsRedeemApi.redeemGift({ code, method });
-      showResult(result, code);
-      if (result.outcome === 'SUCCESS') {
-        setPin('');
-        await loadSidePanels();
-        const match = pools.find((p) => p.name === result.giftName);
-        if (match) {
-          setFlashGiftId(match.giftId);
-          window.setTimeout(() => setFlashGiftId(null), 1100);
-        }
-      }
-    } catch (err) {
-      setSheet({
-        kind: 'bad',
-        title: 'Request failed',
-        subtitle: err instanceof Error ? err.message : 'Could not reach the server.',
-        rows: [['Code entered', code]],
-      });
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const captureQr = async () => {
-    if (busy) return;
-    const video = videoRef.current;
-    const Detector = (
-      window as unknown as {
-        BarcodeDetector?: new (opts: { formats: string[] }) => {
-          detect: (src: ImageBitmapSource) => Promise<Array<{ rawValue: string }>>;
-        };
-      }
-    ).BarcodeDetector;
-    if (Detector && video && video.readyState >= 2) {
+  const processCode = useCallback(
+    async (raw: string, method: 'QR_SCAN' | 'MANUAL_ENTRY') => {
+      const code = raw.trim().toUpperCase();
+      if (!code || busyRef.current) return;
+      busyRef.current = true;
+      setBusy(true);
       try {
-        const detector = new Detector({ formats: ['qr_code'] });
-        const codes = await detector.detect(video);
-        const value = codes[0]?.rawValue?.trim();
-        if (value) {
-          await processCode(value, 'QR_SCAN');
-          return;
+        const result = await giftsRedeemApi.redeemGift({ code, method });
+        const kind = outcomeKind(result.outcome);
+        setSheet({
+          kind,
+          title: result.title || (kind === 'ok' ? 'Redemption successful' : 'Unable to redeem'),
+          subtitle: result.subtitle || '',
+          rows: (result.rows || []).map((r) => [r[0], r[1]] as [string, string]),
+          giftName: result.giftName,
+          remaining: result.remaining,
+        });
+        if (!result.rows?.length && kind === 'bad') {
+          setSheet((s) =>
+            s
+              ? {
+                  ...s,
+                  rows: [
+                    ['Code entered', code],
+                    ['Method', method === 'QR_SCAN' ? 'QR Scan' : 'Manual Entry'],
+                  ],
+                }
+              : s,
+          );
         }
-      } catch {
-        /* fall through */
+        if (result.outcome === 'SUCCESS') {
+          setPin('');
+          await loadSidePanels();
+          const match = poolsRef.current.find((p) => p.name === result.giftName);
+          if (match) {
+            setFlashGiftId(match.giftId);
+            window.setTimeout(() => setFlashGiftId(null), 1100);
+          }
+        }
+      } catch (err) {
+        setSheet({
+          kind: 'bad',
+          title: 'Request failed',
+          subtitle: err instanceof Error ? err.message : 'Could not reach the server.',
+          rows: [['Code entered', code]],
+        });
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
       }
-    }
-    setSheet({
-      kind: 'warn',
-      title: 'No QR detected',
-      subtitle: 'Point the camera at the customer’s QR, or switch to Enter PIN and type RDM-…',
-      rows: [],
-    });
-  };
+    },
+    [loadSidePanels],
+  );
+
+  useContinuousQrScan({
+    enabled: showGiftRedeem && mode === 'qr' && camReady && !busy && !sheet && !camError,
+    videoRef,
+    onDetect: (value) => {
+      if (busyRef.current || sheetOpenRef.current) return;
+      void processCode(value, 'QR_SCAN');
+    },
+  });
 
   if (!showGiftRedeem) {
     return <Navigate to="/" replace />;
@@ -223,29 +224,31 @@ export default function RedeemGiftPage() {
                   </div>
                   <div className="rg-laser" />
                   <div className="rg-scanhint">
-                    {camError || 'Scan the QR from the customer’s e-mail or SMS link'}
+                    {camError ||
+                      (busy
+                        ? 'Verifying…'
+                        : camReady
+                          ? 'Hold steady — QR auto-captures when detected'
+                          : 'Starting camera…')}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="rg-btn rg-bpri"
-                  disabled={busy || Boolean(camError)}
-                  onClick={() => void captureQr()}
-                >
-                  {busy ? 'Verifying…' : 'Capture code'}
-                </button>
+                {busy && (
+                  <button type="button" className="rg-btn rg-bpri" disabled>
+                    Verifying…
+                  </button>
+                )}
               </div>
             ) : (
               <div>
                 <label className="rg-fl" htmlFor="crm-rg-pin">
-                  Redemption code from the customer’s e-mail or SMS
+                  Authentication PIN from the customer’s product / e-mail / SMS
                 </label>
                 <input
                   id="crm-rg-pin"
                   ref={pinInputRef}
                   className="rg-pin"
-                  placeholder="RDM-XXXXXXXXXX"
-                  maxLength={14}
+                  placeholder="PIN or RDM-XXXXXXXXXX"
+                  maxLength={20}
                   autoComplete="off"
                   value={pin}
                   onChange={(e) => setPin(e.target.value.toUpperCase())}
@@ -317,8 +320,8 @@ export default function RedeemGiftPage() {
           </div>
 
           <div className="rg-note">
-            The redemption code is <strong>RDM-</strong> plus the product scratch PIN. Redemption is
-            verified on the server and logged against your staff ID.
+            Scan the customer’s <strong>authentication PIN QR</strong>. Points are awarded only at
+            authentication — redeem does not add points. Unauthenticated PINs cannot be redeemed.
           </div>
         </div>
       </RoleGate>
