@@ -93,7 +93,7 @@ export function ModalFooterActions({
 }
 
 export function useModalActions() {
-  const { isOpen, closeModal, openModal } = useModal();
+  const { isOpen, closeModal, openModal, getPayload } = useModal();
   const submitForm = useSubmitForm();
   const { showToast } = useToast();
 
@@ -107,5 +107,5 @@ export function useModalActions() {
     [submitForm, closeModal],
   );
 
-  return { isOpen, closeModal, openModal, submitForm, showToast, handleSubmit };
+  return { isOpen, closeModal, openModal, getPayload, submitForm, showToast, handleSubmit };
 }

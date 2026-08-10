@@ -32,7 +32,8 @@ export const NAV_CONFIG: Record<RoleId, NavEntry[]> = {
     { type: 'item', id: 'team', ico: 'user', lbl: 'Team' },
     { type: 'item', id: 'reports', ico: 'chart', lbl: 'Reports' },
     { type: 'item', id: 'settings', ico: 'settings', lbl: 'Settings' },
-    { type: 'item', id: 'sartor360', ico: 'link', lbl: 'SartorChain + DORA', tier: ['360'] },
+    { type: 'item', id: 'sartor360', ico: 'link', lbl: 'Sartor-Chain + DORA', tier: ['360'] },
+    { type: 'item', id: 'sticker-orders', ico: 'qr-code', lbl: 'Sticker Orders', tier: ['360'] },
   ],
   admin: [
     { type: 'item', id: 'dash', ico: 'home', lbl: 'Dashboard' },
@@ -128,6 +129,7 @@ export const PAGE_TITLES: Record<PageId, string> = {
   reconciliation: 'Stock Reconciliation',
   suppliers: 'Supplier Management',
   'redeem-gift': 'Redeem Gift',
+  'sticker-orders': 'Sticker Orders',
 };
 
 export function getDefaultPageForRole(role: RoleId): PageId {

@@ -31,6 +31,7 @@ export const PAGE_PATHS: Record<PageId, string> = {
   reconciliation: '/reconciliation',
   suppliers: '/suppliers',
   'redeem-gift': '/redeem-gift',
+  'sticker-orders': '/sticker-orders',
 };
 
 const pathToPage = Object.fromEntries(

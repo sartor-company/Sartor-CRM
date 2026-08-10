@@ -4,12 +4,19 @@ import { useModal } from '../../context/ModalContext';
 import { TIER_LABELS } from '../../constants/tiers';
 
 export function Topbar() {
-  const { pageTitle, companyName, tier, canShowSalesActions, openSidebar } = useApp();
+  const { pageTitle, companyName, tier, canShowSalesActions, openSidebar, logout, roleLabel } = useApp();
   const { openModal } = useModal();
 
   return (
     <div className="topbar">
-      <div className="ham" onClick={openSidebar} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && openSidebar()}>
+      <div
+        className="ham"
+        onClick={openSidebar}
+        role="button"
+        tabIndex={0}
+        aria-label="Open menu"
+        onKeyDown={(e) => e.key === 'Enter' && openSidebar()}
+      >
         <span />
         <span />
         <span />
@@ -17,7 +24,7 @@ export function Topbar() {
       <div className="tb-info">
         <div className="tb-title">{pageTitle}</div>
         <div className="tb-sub">
-          {companyName} — {TIER_LABELS[tier]}
+          {companyName} — {TIER_LABELS[tier]} · {roleLabel}
         </div>
       </div>
       <div className="tb-r">
@@ -33,6 +40,9 @@ export function Topbar() {
             </Button>
           </>
         )}
+        <Button variant="secondary" size="sm" onClick={logout} aria-label="Sign out">
+          Sign out
+        </Button>
       </div>
     </div>
   );

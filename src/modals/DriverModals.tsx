@@ -1,10 +1,14 @@
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Icon, IconLabel } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { RoleGate } from '../components/ui/RoleGate';
+import { opsApi, type OpsDriver, type OpsWarehouse } from '../api/ops';
+import { useLiveOptions } from '../hooks/useLiveOptions';
 import { useRoleGates } from '../hooks/useRoleGates';
+import { formatDate } from '../utils/format';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
 function PinInputs() {
@@ -17,9 +21,99 @@ function PinInputs() {
   );
 }
 
+function whName(warehouse: OpsDriver['warehouse']) {
+  if (!warehouse) return '—';
+  if (typeof warehouse === 'string') return warehouse;
+  return warehouse.name || '—';
+}
+
+function lpoLabel(active: OpsDriver['activeLpo']) {
+  if (!active) return '—';
+  if (typeof active === 'string') return active;
+  return active.lpoId || '—';
+}
+
+function initials(name: string) {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() || '')
+      .join('') || '?'
+  );
+}
+
 export function DriverModals() {
-  const { isOpen, closeModal, openModal, handleSubmit, showToast } = useModalActions();
+  const { isOpen, closeModal, openModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { showOnboardDriver, showDriverEdit, showDriverWh } = useRoleGates();
+  const { drivers, warehouses: liveWarehouses } = useLiveOptions();
+  const [warehouses, setWarehouses] = useState<OpsWarehouse[]>([]);
+  const [saving, setSaving] = useState(false);
+  const nameRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const licenceRef = useRef<HTMLInputElement>(null);
+  const licenceExpRef = useRef<HTMLInputElement>(null);
+  const makeRef = useRef<HTMLInputElement>(null);
+  const modelRef = useRef<HTMLInputElement>(null);
+  const yearRef = useRef<HTMLInputElement>(null);
+  const plateRef = useRef<HTMLInputElement>(null);
+  const whRef = useRef<HTMLSelectElement>(null);
+
+  const driver =
+    getPayload<{ driver?: OpsDriver }>('view-driver')?.driver ||
+    getPayload<{ driver?: OpsDriver }>('assign-driver')?.driver ||
+    getPayload<{ driver?: OpsDriver }>('assign-driver-warehouse')?.driver ||
+    getPayload<{ driver?: OpsDriver }>('onboard-driver')?.driver ||
+    null;
+
+  const whList = warehouses.length ? warehouses : liveWarehouses;
+
+  useEffect(() => {
+    if (!isOpen('onboard-driver') && !isOpen('assign-driver-warehouse')) return;
+    void opsApi.listWarehouses().then(setWarehouses).catch(() => setWarehouses([]));
+  }, [isOpen]);
+
+  const saveDriver = async (btn: HTMLButtonElement | null) => {
+    const name = nameRef.current?.value.trim() || '';
+    const phone = phoneRef.current?.value.trim() || '';
+    const plate = plateRef.current?.value.trim() || '';
+    if (!name || !phone || !plate) {
+      showToast('Name, phone and plate are required.', 'err');
+      return;
+    }
+    setSaving(true);
+    if (btn) btn.disabled = true;
+    try {
+      await opsApi.createDriver({
+        name,
+        phone,
+        plate,
+        licenceNo: licenceRef.current?.value.trim() || undefined,
+        licenceExpiry: licenceExpRef.current?.value || undefined,
+        vehicleMake: makeRef.current?.value.trim() || undefined,
+        vehicleModel: modelRef.current?.value.trim() || undefined,
+        vehicleYear: yearRef.current?.value.trim() || undefined,
+        warehouse: whRef.current?.value || undefined,
+      });
+      closeModal('onboard-driver');
+      showToast('Driver onboarded successfully.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to onboard driver', 'err');
+    } finally {
+      setSaving(false);
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  const vehicle = driver
+    ? [driver.vehicleMake, driver.vehicleModel, driver.vehicleYear].filter(Boolean).join(' ') || '—'
+    : '—';
+  const passDriver = (id: import('../types').ModalId) => {
+    if (driver) openModal(id, { driver });
+    else openModal(id);
+  };
 
   return (
     <>
@@ -29,53 +123,102 @@ export function DriverModals() {
           open={isOpen('onboard-driver')}
           onClose={() => closeModal('onboard-driver')}
           icon="car"
-          title="Onboard Driver"
+          title={driver ? 'Edit Driver' : 'Onboard Driver'}
           footer={
             <ModalFooterActions onCancel={() => closeModal('onboard-driver')}>
               <Button
                 variant="green"
-                onClick={(e) => handleSubmit('onboard-driver', e.currentTarget, 'Driver onboarded successfully.')}
+                disabled={saving}
+                onClick={(e) => void saveDriver(e.currentTarget)}
               >
-                Onboard Driver
+                {saving ? 'Saving…' : driver ? 'Save Changes' : 'Onboard Driver'}
               </Button>
             </ModalFooterActions>
           }
         >
           <FRow>
             <FG label="Full Name *" className="w50">
-              <input className="inp" placeholder="Legal name" />
+              <input
+                ref={nameRef}
+                className="inp"
+                placeholder="Legal name"
+                key={`n-${driver?._id || 'new'}`}
+                defaultValue={driver?.name || ''}
+              />
             </FG>
             <FG label="Phone *" className="w50">
-              <input className="inp" type="tel" placeholder="+234…" />
+              <input
+                ref={phoneRef}
+                className="inp"
+                type="tel"
+                placeholder="+234…"
+                key={`p-${driver?._id || 'new'}`}
+                defaultValue={driver?.phone || ''}
+              />
             </FG>
           </FRow>
           <FRow>
             <FG label="Licence No. *" className="w50">
-              <input className="inp" placeholder="Licence number" />
+              <input
+                ref={licenceRef}
+                className="inp"
+                placeholder="Licence number"
+                key={`l-${driver?._id || 'new'}`}
+                defaultValue={driver?.licenceNo || ''}
+              />
             </FG>
             <FG label="Licence Expiry *" className="w50">
-              <input className="inp" type="date" />
+              <input ref={licenceExpRef} className="inp" type="date" />
             </FG>
           </FRow>
           <FRow>
             <FG label="Make *">
-              <input className="inp" placeholder="Toyota" />
+              <input
+                ref={makeRef}
+                className="inp"
+                placeholder="Toyota"
+                key={`mk-${driver?._id || 'new'}`}
+                defaultValue={driver?.vehicleMake || ''}
+              />
             </FG>
             <FG label="Model *">
-              <input className="inp" placeholder="Hilux" />
+              <input
+                ref={modelRef}
+                className="inp"
+                placeholder="Model"
+                key={`md-${driver?._id || 'new'}`}
+                defaultValue={driver?.vehicleModel || ''}
+              />
             </FG>
             <FG label="Year">
-              <input className="inp" type="number" placeholder="2020" />
+              <input
+                ref={yearRef}
+                className="inp"
+                type="number"
+                placeholder="2020"
+                key={`y-${driver?._id || 'new'}`}
+                defaultValue={driver?.vehicleYear || ''}
+              />
             </FG>
           </FRow>
           <FRow>
             <FG label="Plate No. *" className="w50">
-              <input className="inp" placeholder="ABJ-234-KW" />
+              <input
+                ref={plateRef}
+                className="inp"
+                placeholder="Plate"
+                key={`pl-${driver?._id || 'new'}`}
+                defaultValue={driver?.plate || ''}
+              />
             </FG>
             <FG label="Warehouse *" className="w50">
-              <select className="sel" defaultValue="Abuja Central">
-                <option>Abuja Central</option>
-                <option>Lagos Hub</option>
+              <select ref={whRef} className="sel" defaultValue="">
+                <option value="">Select warehouse…</option>
+                {whList.map((w) => (
+                  <option key={w._id} value={w._id}>
+                    {w.name}
+                  </option>
+                ))}
               </select>
             </FG>
           </FRow>
@@ -86,8 +229,10 @@ export function DriverModals() {
         id="view-driver"
         open={isOpen('view-driver')}
         onClose={() => closeModal('view-driver')}
-        title="Driver Profile — Chidi Okeke"
-        subtitle="Abuja Central Warehouse · ABJ-234-KW"
+        title={driver ? `Driver Profile — ${driver.name}` : 'Driver Profile'}
+        subtitle={
+          driver ? `${whName(driver.warehouse)} · ${driver.plate}` : 'Select a driver'
+        }
         size="wide"
         footer={
           <>
@@ -99,7 +244,7 @@ export function DriverModals() {
                 variant="outline"
                 onClick={() => {
                   closeModal('view-driver');
-                  openModal('assign-driver-warehouse');
+                  passDriver('assign-driver-warehouse');
                 }}
               >
                 Assign Warehouse
@@ -110,7 +255,7 @@ export function DriverModals() {
                 variant="outline"
                 onClick={() => {
                   closeModal('view-driver');
-                  openModal('onboard-driver');
+                  passDriver('onboard-driver');
                 }}
               >
                 Edit Details
@@ -119,87 +264,84 @@ export function DriverModals() {
           </>
         }
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16,
-            padding: 14,
-            background: 'var(--bg)',
-            borderRadius: 9,
-            marginBottom: 14,
-          }}
-        >
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: '50%',
-              background: 'var(--N)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 20,
-              fontWeight: 700,
-              color: '#fff',
-            }}
-          >
-            CO
-          </div>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--N)' }}>Chidi Okeke</div>
-            <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 2 }}>
-              Driver · Abuja Central · <Badge variant="amber">On Route</Badge>
+        {!driver ? (
+          <InfoBanner>No driver selected.</InfoBanner>
+        ) : (
+          <>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 16,
+                padding: 14,
+                background: 'var(--bg)',
+                borderRadius: 9,
+                marginBottom: 14,
+              }}
+            >
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: 'var(--N)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 20,
+                  fontWeight: 700,
+                  color: '#fff',
+                }}
+              >
+                {initials(driver.name)}
+              </div>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--N)' }}>{driver.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 2 }}>
+                  Driver · {whName(driver.warehouse)} ·{' '}
+                  <Badge
+                    variant={
+                      driver.status === 'Available'
+                        ? 'green'
+                        : driver.status === 'On Route'
+                          ? 'amber'
+                          : 'gray'
+                    }
+                  >
+                    {driver.status || 'Available'}
+                  </Badge>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 4 }}>
+                  <IconLabel icon="phone" size={12}>
+                    {driver.phone}
+                  </IconLabel>
+                </div>
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: 'var(--tx3)', marginTop: 4 }}>
-              <IconLabel icon="phone" size={12}>+234 803 567 4421</IconLabel>
+            <div className="g2" style={{ marginBottom: 0 }}>
+              <div>
+                <SDivLabel style={{ marginTop: 0 }}>Personal & Licence Details</SDivLabel>
+                <IRow label="Licence No." value={driver.licenceNo || '—'} />
+                <IRow label="Licence Expiry" value={formatDate(driver.licenceExpiry)} />
+                <IRow
+                  label="Active Assignment"
+                  value={
+                    lpoLabel(driver.activeLpo) !== '—' ? (
+                      <Badge variant="amber">{lpoLabel(driver.activeLpo)}</Badge>
+                    ) : (
+                      '—'
+                    )
+                  }
+                />
+              </div>
+              <div>
+                <SDivLabel style={{ marginTop: 0 }}>Vehicle Details</SDivLabel>
+                <IRow label="Make / Model" value={vehicle} />
+                <IRow label="Plate Number" value={driver.plate} />
+              </div>
             </div>
-          </div>
-        </div>
-        <div className="g2" style={{ marginBottom: 0 }}>
-          <div>
-            <SDivLabel style={{ marginTop: 0 }}>Personal & Licence Details</SDivLabel>
-            <IRow label="Licence No." value="FCT-2021-DL-04892" />
-            <IRow label="Licence Expiry" value="Mar 2027 — Valid" />
-            <IRow label="Active Assignment" value={<Badge variant="amber">LPO-0042 → FreshMart NG</Badge>} />
-          </div>
-          <div>
-            <SDivLabel style={{ marginTop: 0 }}>Vehicle Details</SDivLabel>
-            <IRow label="Make / Model" value="Toyota Hilux 2020" />
-            <IRow label="Plate Number" value="ABJ-234-KW" />
-          </div>
-        </div>
-        <SDivLabel>Recent Deliveries</SDivLabel>
-        <div className="tw">
-          <table style={{ fontSize: 12 }}>
-            <thead>
-              <tr>
-                <th>LPO</th>
-                <th>Customer</th>
-                <th>Date</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ fontFamily: "'DM Mono',monospace" }}>LPO-0042</td>
-                <td>FreshMart NG</td>
-                <td>Current</td>
-                <td>
-                  <Badge variant="amber">In Progress</Badge>
-                </td>
-              </tr>
-              <tr>
-                <td style={{ fontFamily: "'DM Mono',monospace" }}>LPO-0038</td>
-                <td>SafeZone Pharma</td>
-                <td>5 May 2026</td>
-                <td>
-                  <Badge variant="green">Delivered</Badge>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+          </>
+        )}
       </SartorModal>
 
       <SartorModal
@@ -220,10 +362,21 @@ export function DriverModals() {
         }
       >
         <FG label="Select Driver *" full>
-          <select className="sel" defaultValue="">
+          <select
+            className="sel"
+            defaultValue={driver?._id || ''}
+            key={driver?._id || 'none'}
+          >
             <option value="">Choose driver…</option>
-            <option>Emeka Eze — Hino Truck · Available</option>
-            <option>Chidi Okeke — Toyota Hilux</option>
+            {drivers.map((d) => (
+              <option key={d._id} value={d._id}>
+                {d.name}
+                {d.vehicleMake || d.vehicleModel
+                  ? ` — ${[d.vehicleMake, d.vehicleModel].filter(Boolean).join(' ')}`
+                  : ''}
+                {d.status ? ` · ${d.status}` : ''}
+              </option>
+            ))}
           </select>
         </FG>
       </SartorModal>
@@ -234,7 +387,11 @@ export function DriverModals() {
           open={isOpen('assign-driver-warehouse')}
           onClose={() => closeModal('assign-driver-warehouse')}
           title="Assign Driver to Warehouse"
-          subtitle="Chidi Okeke · Currently: Abuja Central"
+          subtitle={
+            driver
+              ? `${driver.name} · Currently: ${whName(driver.warehouse)}`
+              : 'Select a driver'
+          }
           size="narrow"
           footer={
             <ModalFooterActions onCancel={() => closeModal('assign-driver-warehouse')}>
@@ -249,12 +406,26 @@ export function DriverModals() {
             </ModalFooterActions>
           }
         >
-          <InfoBanner>Linking a driver to a warehouse means they appear when dispatching from that warehouse only.</InfoBanner>
-          <IRow label="Driver" value="Chidi Okeke — Toyota Hilux (ABJ-234-KW)" />
+          <InfoBanner>
+            Linking a driver to a warehouse means they appear when dispatching from that warehouse only.
+          </InfoBanner>
+          <IRow
+            label="Driver"
+            value={
+              driver
+                ? `${driver.name}${vehicle !== '—' ? ` — ${vehicle}` : ''} (${driver.plate})`
+                : '—'
+            }
+          />
           <FG label="Assign to Warehouse *" full style={{ marginTop: 10 }}>
-            <select className="sel" defaultValue="abuja">
-              <option value="abuja">Abuja Central — Garki Industrial</option>
-              <option value="lagos">Lagos Hub — Apapa Road</option>
+            <select className="sel" defaultValue="">
+              <option value="">Select warehouse…</option>
+              {whList.map((w) => (
+                <option key={w._id} value={w._id}>
+                  {w.name}
+                  {w.address ? ` — ${w.address}` : ''}
+                </option>
+              ))}
             </select>
           </FG>
           <FG label="Effective Date *" full style={{ marginTop: 10 }}>
@@ -271,7 +442,7 @@ export function DriverModals() {
         open={isOpen('driver-pickup')}
         onClose={() => closeModal('driver-pickup')}
         title="Step 1: Confirm Pickup"
-        subtitle="LPO-0042 · Abuja Central"
+        subtitle="Photo of packed goods at warehouse"
         footer={
           <ModalFooterActions onCancel={() => closeModal('driver-pickup')}>
             <Button
@@ -312,7 +483,7 @@ export function DriverModals() {
         open={isOpen('delivery-confirm')}
         onClose={() => closeModal('delivery-confirm')}
         title="Step 2: Confirm Delivery"
-        subtitle="LPO-0041 · PharmaCare Ltd"
+        subtitle="Enter customer PIN and upload evidence"
         footer={
           <ModalFooterActions onCancel={() => closeModal('delivery-confirm')}>
             <Button

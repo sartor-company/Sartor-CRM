@@ -4,53 +4,26 @@ import { Icon, IconLabel } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
+import { leadName, refName, type CrmCustomer, type CrmLead, type CrmLpo } from '../api/crm';
 import { useApp } from '../context/AppContext';
-import { ROLE_META } from '../constants/roles';
-import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
-
-const LPO_CUSTOMERS: Record<
-  string,
-  { label: string; addr: string; state: string; lga: string }
-> = {
-  freshmart: {
-    label: 'FreshMart NG — Garki, Abuja',
-    addr: '31 Garki Market Rd',
-    state: 'FCT — Abuja',
-    lga: 'Garki',
-  },
-  pharmacare: {
-    label: 'PharmaCare Ltd — Ikeja, Lagos',
-    addr: '14 Allen Avenue',
-    state: 'Lagos',
-    lga: 'Ikeja',
-  },
-  zenith: {
-    label: 'Zenith Pharma (Customer) — VI',
-    addr: '12 Adeola Odeku St',
-    state: 'Lagos',
-    lga: 'Victoria Island',
-  },
-};
-
-const LPO_PRODUCTS = [
-  { sku: 'SH-25-CAR', name: 'Hand Sanitiser 250ml Carabiner', price: 1200 },
-  { sku: 'SH-25-SIL', name: 'Hand Sanitiser 250ml Silicone', price: 1000 },
-  { sku: 'SH-25-HOK', name: 'Silicone Hook Pack', price: 1000 },
-];
+import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
+import { formatNaira, num } from '../utils/format';
+import { lpoStatusVariant } from '../utils/statusBadges';
+import { FG, FRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
 type LpoItem = { product: string; qty: number; price: number };
 
-function formatNaira(n: number) {
-  return `₦${n.toLocaleString('en-NG')}`;
-}
-
 export function LpoModals() {
-  const { isOpen, closeModal, handleSubmit, showToast } = useModalActions();
-  const { companyName, role } = useApp();
+  const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
+  const { companyName, displayName, roleLabel } = useApp();
+  const { products, customerOptions, drivers } = useLiveOptions();
   const [step, setStep] = useState(1);
   const [customer, setCustomer] = useState('');
   const [terms, setTerms] = useState('');
   const [items, setItems] = useState<LpoItem[]>([{ product: '', qty: 0, price: 0 }]);
+
+  const lpo = getPayload<{ lpo?: CrmLpo }>('view-lpo')?.lpo;
+  const createPayload = getPayload<{ customer?: CrmCustomer; lead?: CrmLead }>('create-lpo');
 
   const resetWizard = () => {
     setStep(1);
@@ -61,11 +34,16 @@ export function LpoModals() {
 
   const createLpoOpen = isOpen('create-lpo');
   useEffect(() => {
-    if (!createLpoOpen) resetWizard();
-  }, [createLpoOpen]);
+    if (!createLpoOpen) {
+      resetWizard();
+      return;
+    }
+    const pre = createPayload?.customer?._id || createPayload?.lead?._id;
+    if (pre) setCustomer(pre);
+  }, [createLpoOpen, createPayload?.customer?._id, createPayload?.lead?._id]);
 
   const grand = items.reduce((s, i) => s + i.qty * i.price, 0);
-  const cust = customer && customer !== 'new' ? LPO_CUSTOMERS[customer] : null;
+  const selectedOption = customerOptions.find((c) => c.id === customer);
   const termsLabel =
     terms === 'pod'
       ? 'Payment on Delivery (POD)'
@@ -86,9 +64,15 @@ export function LpoModals() {
   };
 
   const onProductChange = (idx: number, sku: string) => {
-    const p = LPO_PRODUCTS.find((x) => x.sku === sku);
-    updateItem(idx, { product: sku, price: p?.price ?? 0 });
+    const p = products.find((x) => productSku(x) === sku);
+    updateItem(idx, {
+      product: sku,
+      price: p ? num(p.sellingPrice ?? p.price) : 0,
+    });
   };
+
+  const lpoId = lpo?.lpoId || (lpo ? lpo._id.slice(-6) : 'LPO');
+  const lpoCustomer = lpo ? leadName(typeof lpo.lead === 'object' ? lpo.lead : null) : '—';
 
   return (
     <>
@@ -155,9 +139,9 @@ export function LpoModals() {
                   onChange={(e) => setCustomer(e.target.value)}
                 >
                   <option value="">Select customer or lead…</option>
-                  {Object.entries(LPO_CUSTOMERS).map(([k, v]) => (
-                    <option key={k} value={k}>
-                      {v.label}
+                  {customerOptions.map((c) => (
+                    <option key={`${c.kind}-${c.id}`} value={c.id}>
+                      {c.label}
                     </option>
                   ))}
                   <option value="new">+ Add New Lead (Quick Create)</option>
@@ -199,18 +183,6 @@ export function LpoModals() {
                 <FG label="Street Address *" full style={{ marginBottom: 8 }}>
                   <input className="inp" placeholder="Street address" />
                 </FG>
-                <FRow>
-                  <FG label="State *">
-                    <select className="sel">
-                      <option value="">State…</option>
-                      <option>FCT — Abuja</option>
-                      <option>Lagos</option>
-                    </select>
-                  </FG>
-                  <FG label="LGA *">
-                    <input className="inp" placeholder="LGA" />
-                  </FG>
-                </FRow>
               </div>
             )}
             <div style={{ marginBottom: 12 }}>
@@ -225,12 +197,10 @@ export function LpoModals() {
                   border: '1px solid var(--brd)',
                   borderRadius: 6,
                   fontSize: 13,
-                  color: cust ? 'var(--tx2)' : 'var(--tx3)',
+                  color: selectedOption ? 'var(--tx2)' : 'var(--tx3)',
                 }}
               >
-                {cust
-                  ? `${cust.addr}, ${cust.lga}, ${cust.state}`
-                  : '— auto-populated —'}
+                {selectedOption ? selectedOption.label : '— select customer / lead —'}
               </div>
             </div>
             <SDivLabel>Order Items</SDivLabel>
@@ -250,9 +220,9 @@ export function LpoModals() {
                     onChange={(e) => onProductChange(idx, e.target.value)}
                   >
                     <option value="">Select product…</option>
-                    {LPO_PRODUCTS.map((p) => (
-                      <option key={p.sku} value={p.sku}>
-                        {p.sku} — {p.name}
+                    {products.map((p) => (
+                      <option key={p._id} value={productSku(p)}>
+                        {productLabel(p)}
                       </option>
                     ))}
                   </select>
@@ -316,7 +286,7 @@ export function LpoModals() {
                     Created By
                   </div>
                   <div style={{ fontSize: 12, color: '#fff', fontWeight: 600 }}>
-                    {ROLE_META[role].name} ({ROLE_META[role].role})
+                    {displayName} ({roleLabel})
                   </div>
                 </div>
               </div>
@@ -325,14 +295,10 @@ export function LpoModals() {
                   <div>
                     <div className="inv-party-lbl">From</div>
                     <div className="inv-party-val">{companyName}</div>
-                    <div className="inv-party-addr">Abuja, FCT, Nigeria</div>
                   </div>
                   <div>
                     <div className="inv-party-lbl">Deliver To</div>
-                    <div className="inv-party-val">{cust?.label ?? '—'}</div>
-                    <div className="inv-party-addr">
-                      {cust ? `${cust.addr}, ${cust.lga}, ${cust.state}` : '—'}
-                    </div>
+                    <div className="inv-party-val">{selectedOption?.label ?? '—'}</div>
                   </div>
                 </div>
                 <div className="inv-items">
@@ -356,15 +322,18 @@ export function LpoModals() {
                       ) : (
                         items
                           .filter((i) => i.product)
-                          .map((i, idx) => (
-                            <tr key={idx}>
-                              <td>{i.product}</td>
-                              <td>{LPO_PRODUCTS.find((p) => p.sku === i.product)?.name}</td>
-                              <td style={{ textAlign: 'right' }}>{i.qty}</td>
-                              <td style={{ textAlign: 'right' }}>{formatNaira(i.price)}</td>
-                              <td style={{ textAlign: 'right' }}>{formatNaira(i.qty * i.price)}</td>
-                            </tr>
-                          ))
+                          .map((i, idx) => {
+                            const p = products.find((x) => productSku(x) === i.product);
+                            return (
+                              <tr key={idx}>
+                                <td>{i.product}</td>
+                                <td>{p?.productName || '—'}</td>
+                                <td style={{ textAlign: 'right' }}>{i.qty}</td>
+                                <td style={{ textAlign: 'right' }}>{formatNaira(i.price)}</td>
+                                <td style={{ textAlign: 'right' }}>{formatNaira(i.qty * i.price)}</td>
+                              </tr>
+                            );
+                          })
                       )}
                     </tbody>
                   </table>
@@ -394,8 +363,12 @@ export function LpoModals() {
         id="view-lpo"
         open={isOpen('view-lpo')}
         onClose={() => closeModal('view-lpo')}
-        title="LPO-0042"
-        subtitle="FreshMart NG · Dispatched · Payment on Delivery"
+        title={lpoId}
+        subtitle={
+          lpo
+            ? `${lpoCustomer} · ${lpo.status || '—'} · ${lpo.terms || '—'}`
+            : 'Open an LPO from the list'
+        }
         size="wide"
         footer={
           <>
@@ -411,90 +384,53 @@ export function LpoModals() {
           </>
         }
       >
-        <div className="lpo-doc">
-          <div className="lpo-doc-head">
-            <div>
-              <div className="lpo-doc-title">Purchase Order</div>
-              <div className="lpo-doc-ref">LPO-0042</div>
-            </div>
-            <Badge variant="amber">Dispatched</Badge>
-          </div>
-          <div className="lpo-doc-body">
-            <div className="inv-party">
+        {!lpo ? (
+          <InfoBanner>No LPO selected.</InfoBanner>
+        ) : (
+          <div className="lpo-doc">
+            <div className="lpo-doc-head">
               <div>
-                <div className="inv-party-lbl">From</div>
-                <div className="inv-party-val">{companyName}</div>
+                <div className="lpo-doc-title">Purchase Order</div>
+                <div className="lpo-doc-ref">{lpoId}</div>
               </div>
-              <div>
-                <div className="inv-party-lbl">Deliver To</div>
-                <div className="inv-party-val">FreshMart NG</div>
-                <div className="inv-party-addr">
-                  31 Garki Market Rd, Garki, FCT — Abuja
-                  <br />
-                  Attn: Adebisi Olawale (Procurement)
+              <Badge variant={lpoStatusVariant(lpo.status)}>{lpo.status || '—'}</Badge>
+            </div>
+            <div className="lpo-doc-body">
+              <div className="inv-party">
+                <div>
+                  <div className="inv-party-lbl">From</div>
+                  <div className="inv-party-val">{companyName}</div>
+                </div>
+                <div>
+                  <div className="inv-party-lbl">Deliver To</div>
+                  <div className="inv-party-val">{lpoCustomer}</div>
                 </div>
               </div>
-            </div>
-            <div className="inv-party" style={{ marginTop: -8 }}>
-              <div>
-                <div className="inv-party-lbl">Created By</div>
-                <div className="inv-party-val">Abubakar Idah (Admin)</div>
+              <div className="inv-party" style={{ marginTop: -8 }}>
+                <div>
+                  <div className="inv-party-lbl">Created By</div>
+                  <div className="inv-party-val">{refName(lpo.user)}</div>
+                </div>
+                <div>
+                  <div className="inv-party-lbl">Terms</div>
+                  <div className="inv-party-val">{lpo.terms || '—'}</div>
+                </div>
               </div>
-              <div>
-                <div className="inv-party-lbl">Terms</div>
-                <div className="inv-party-val">Payment on Delivery (POD)</div>
-              </div>
-            </div>
-            <div className="inv-items">
-              <table>
-                <thead>
-                  <tr>
-                    <th>SKU</th>
-                    <th>Product</th>
-                    <th>Batch</th>
-                    <th>Qty</th>
-                    <th>Unit Price</th>
-                    <th>Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>SH-25-CAR</td>
-                    <td>Hand Sanitiser 250ml Carabiner</td>
-                    <td>BTH-2024-09A</td>
-                    <td>100</td>
-                    <td>₦1,200</td>
-                    <td>₦120,000</td>
-                  </tr>
-                  <tr>
-                    <td>SH-25-SIL</td>
-                    <td>Hand Sanitiser 250ml Silicone</td>
-                    <td>BTH-2024-08B</td>
-                    <td>60</td>
-                    <td>₦1,000</td>
-                    <td>₦60,000</td>
-                  </tr>
-                  <tr>
-                    <td>SH-25-HOK</td>
-                    <td>Silicone Hook Pack</td>
-                    <td>BTH-2024-09C</td>
-                    <td>60</td>
-                    <td>₦1,000</td>
-                    <td>₦60,000</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="inv-total">
-              <div className="inv-total-box">
-                <div className="inv-total-row grand">
-                  <span>Grand Total</span>
-                  <span>₦240,000</span>
+              <div className="inv-total">
+                <div className="inv-total-box">
+                  <div className="inv-total-row">
+                    <span>Quantity</span>
+                    <span>{lpo.totalQuantity ?? '—'}</span>
+                  </div>
+                  <div className="inv-total-row grand">
+                    <span>Grand Total</span>
+                    <span>{formatNaira(num(lpo.totalAmount))}</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
       </SartorModal>
 
       <SartorModal
@@ -502,7 +438,7 @@ export function LpoModals() {
         open={isOpen('dispatch-lpo')}
         onClose={() => closeModal('dispatch-lpo')}
         title="Dispatch LPO → Generate Invoice"
-        subtitle="LPO-0040 · HealthPlus Abuja"
+        subtitle="Assign a driver and confirm dispatch"
         footer={
           <ModalFooterActions onCancel={() => closeModal('dispatch-lpo')}>
             <Button
@@ -511,7 +447,7 @@ export function LpoModals() {
                 handleSubmit(
                   'dispatch-lpo',
                   e.currentTarget,
-                  'LPO dispatched. Invoice INV-00043 generated. PIN sent to customer.',
+                  'LPO dispatched. Invoice generated. PIN sent to customer.',
                 )
               }
             >
@@ -524,18 +460,18 @@ export function LpoModals() {
           Invoice auto-generates on dispatch. Invoice number + 6-digit PIN sent to customer via
           SMS/WhatsApp/Email.
         </InfoBanner>
-        <IRow label="Customer" value="HealthPlus Abuja" />
-        <IRow
-          label="Amount"
-          value={
-            <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>₦96,000</span>
-          }
-        />
         <FG label="Assign Driver *" full>
           <select className="sel" defaultValue="">
             <option value="">Select driver…</option>
-            <option>Chidi Okeke — Toyota Hilux</option>
-            <option>Emeka Eze — Hino Truck</option>
+            {drivers.map((d) => (
+              <option key={d._id} value={d._id}>
+                {d.name}
+                {d.vehicleMake || d.vehicleModel
+                  ? ` — ${[d.vehicleMake, d.vehicleModel].filter(Boolean).join(' ')}`
+                  : ''}
+                {d.status ? ` · ${d.status}` : ''}
+              </option>
+            ))}
           </select>
         </FG>
       </SartorModal>

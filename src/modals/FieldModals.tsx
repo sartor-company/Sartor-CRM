@@ -1,29 +1,115 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { LocationCardSection } from '../components/location/LocationCard';
 import { Button } from '../components/ui/Button';
 import { Icon, IconLabel } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
+import { opsApi, type OpsVisit } from '../api/ops';
+import { productLabel, useLiveOptions } from '../hooks/useLiveOptions';
+import { formatDate } from '../utils/format';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
-const VISIT_PRODUCTS = [
-  'SH-25-CAR — Hand Sanitiser 250ml Carabiner',
-  'SH-25-SIL — Hand Sanitiser 250ml Silicone',
-  'SH-50-CAR — Hand Sanitiser 500ml',
-  'SH-25-HOK — Silicone Hook Pack',
-];
-
-const STORES: Record<string, { addr: string; type: string }> = {
-  freshmart: { addr: '31 Garki Market Rd, Garki, FCT', type: 'FMCG-Retail' },
-  healthplus: { addr: '22 Aguiyi Ironsi St, Maitama, Abuja', type: 'FMCG-Retail' },
-};
+function personName(p: OpsVisit['merchandiser']) {
+  if (!p) return '—';
+  if (typeof p === 'string') return p;
+  return p.fullName || '—';
+}
 
 export function FieldModals() {
-  const { isOpen, closeModal, handleSubmit, showToast } = useModalActions();
+  const { isOpen, closeModal, getPayload, showToast } = useModalActions();
+  const { products } = useLiveOptions();
   const [store, setStore] = useState('');
+  const [recentStores, setRecentStores] = useState<string[]>([]);
+  const [savingVisit, setSavingVisit] = useState(false);
+  const [savingIntel, setSavingIntel] = useState(false);
+  const competitorsRef = useRef<HTMLInputElement>(null);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+  const intelStoreRef = useRef<HTMLInputElement>(null);
+  const intelCompRef = useRef<HTMLInputElement>(null);
+  const intelNotesRef = useRef<HTMLTextAreaElement>(null);
+  const addressRef = useRef<HTMLInputElement>(null);
+  const categoryRef = useRef<HTMLInputElement>(null);
 
-  const storeMeta = store ? STORES[store] : null;
+  const visit = getPayload<{ visit?: OpsVisit }>('visit-detail')?.visit;
+
+  const newVisitOpen = isOpen('new-visit');
+  useEffect(() => {
+    if (!newVisitOpen) return;
+    void opsApi
+      .listVisits(false)
+      .then((visits) => {
+        const names = Array.from(
+          new Set(visits.map((v) => v.storeName).filter(Boolean)),
+        ).slice(0, 20);
+        setRecentStores(names);
+      })
+      .catch(() => setRecentStores([]));
+  }, [newVisitOpen]);
+
+  const shelfProducts = useMemo(() => products.slice(0, 20), [products]);
+
+  const saveVisit = async (btn: HTMLButtonElement | null) => {
+    const storeName = store.trim();
+    if (!storeName) {
+      showToast('Enter or select a store.', 'err');
+      return;
+    }
+    setSavingVisit(true);
+    if (btn) btn.disabled = true;
+    try {
+      const checked = document.querySelectorAll<HTMLInputElement>('.check-item input[type="checkbox"]:checked');
+      const skusFound = checked.length;
+      const skusTotal = shelfProducts.length || 0;
+      await opsApi.createVisit({
+        storeName,
+        address: addressRef.current?.value.trim() || undefined,
+        category: categoryRef.current?.value.trim() || undefined,
+        skusFound,
+        skusTotal,
+        skusOos: Math.max(0, skusTotal - skusFound),
+        competitors: competitorsRef.current?.value.trim() || undefined,
+        notes: notesRef.current?.value.trim() || undefined,
+        photoCount: 0,
+      });
+      closeModal('new-visit');
+      showToast('Visit report submitted to management.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+      setStore('');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save visit', 'err');
+    } finally {
+      setSavingVisit(false);
+      if (btn) btn.disabled = false;
+    }
+  };
+
+  const saveIntel = async (btn: HTMLButtonElement | null) => {
+    const storeName = intelStoreRef.current?.value.trim() || '';
+    const observation = intelNotesRef.current?.value.trim() || '';
+    if (!storeName || !observation) {
+      showToast('Store and observation are required.', 'err');
+      return;
+    }
+    setSavingIntel(true);
+    if (btn) btn.disabled = true;
+    try {
+      await opsApi.createIntel({
+        storeName,
+        competitor: intelCompRef.current?.value.trim() || undefined,
+        observation,
+        severity: 'Medium',
+      });
+      closeModal('market-intel');
+      showToast('Market intelligence saved.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save intel', 'err');
+    } finally {
+      setSavingIntel(false);
+      if (btn) btn.disabled = false;
+    }
+  };
 
   return (
     <>
@@ -38,74 +124,67 @@ export function FieldModals() {
           <ModalFooterActions onCancel={() => closeModal('new-visit')}>
             <Button
               variant="green"
-              onClick={(e) =>
-                handleSubmit('new-visit', e.currentTarget, 'Visit report submitted to management.')
-              }
+              disabled={savingVisit}
+              onClick={(e) => void saveVisit(e.currentTarget)}
             >
-              Save & Submit Visit Report
+              {savingVisit ? 'Saving…' : 'Save & Submit Visit Report'}
             </Button>
           </ModalFooterActions>
         }
       >
         <FRow>
           <FG label="Store *">
-            <select
-              className="sel"
+            <input
+              className="inp"
+              list="visit-store-list"
               value={store}
               onChange={(e) => setStore(e.target.value)}
-            >
-              <option value="">Select store…</option>
-              <option value="freshmart">FreshMart Garki</option>
-              <option value="healthplus">HealthPlus Maitama</option>
-            </select>
+              placeholder="Store name"
+            />
+            <datalist id="visit-store-list">
+              {recentStores.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
           </FG>
           <FG label="Store Address">
-            <input className="inp" readOnly style={{ background: 'var(--bg)' }} value={storeMeta?.addr ?? ''} />
+            <input ref={addressRef} className="inp" placeholder="Address (optional)" />
           </FG>
           <FG label="Category">
-            <input className="inp" readOnly style={{ background: 'var(--bg)' }} value={storeMeta?.type ?? ''} />
+            <input ref={categoryRef} className="inp" placeholder="e.g. FMCG-Retail" />
           </FG>
         </FRow>
         <SDivLabel>Sartor Products on Shelf — tick found, enter quantity observed</SDivLabel>
         <div className="checklist-items" style={{ marginBottom: 14 }}>
-          {VISIT_PRODUCTS.map((name) => (
-            <div key={name} className="check-item">
-              <input type="checkbox" />
-              <div className="check-item-body">
-                <span className="check-item-name">{name}</span>
-                <div className="check-item-qty">
-                  <input className="inp" type="number" placeholder="Qty" min={0} />
+          {shelfProducts.length === 0 ? (
+            <div style={{ fontSize: 12, color: 'var(--tx3)', padding: 8 }}>No products loaded.</div>
+          ) : (
+            shelfProducts.map((p) => (
+              <div key={p._id} className="check-item">
+                <input type="checkbox" />
+                <div className="check-item-body">
+                  <span className="check-item-name">{productLabel(p)}</span>
+                  <div className="check-item-qty">
+                    <input className="inp" type="number" placeholder="Qty" min={0} />
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
         <FG label="Out-of-Stock Sartor SKUs" full style={{ marginBottom: 10 }}>
           <input className="inp" placeholder="List any Sartor products that were out of stock" />
         </FG>
         <FG label="Competitor Brands Spotted" full style={{ marginBottom: 10 }}>
-          <input className="inp" placeholder="e.g. Dettol, Septol, PureGel, Lifebuoy…" />
-        </FG>
-        <FG
-          label={
-            <>
-              Competitor Observations{' '}
-              <span style={{ fontWeight: 400, color: 'var(--tx3)' }}>
-                (pricing, promotions, shelf placement)
-              </span>
-            </>
-          }
-          full
-          style={{ marginBottom: 10 }}
-        >
-          <textarea
-            className="ta"
-            rows={3}
-            placeholder="Describe competitor shelf placement, pricing, active promotions…"
-          />
+          <input ref={competitorsRef} className="inp" placeholder="Competitor brands…" />
         </FG>
         <FG label="General Notes" full style={{ marginBottom: 12 }}>
-          <textarea className="ta" rows={3} placeholder="Store condition, manager feedback, requests…" />
+          <textarea
+            ref={notesRef}
+            className="ta"
+            rows={3}
+            placeholder="Store condition, manager feedback, requests…"
+          />
         </FG>
         <SDivLabel>Shelf & Store Photos</SDivLabel>
         <InfoBanner icon="camera" style={{ padding: '7px 11px' }}>
@@ -124,8 +203,12 @@ export function FieldModals() {
         id="visit-detail"
         open={isOpen('visit-detail')}
         onClose={() => closeModal('visit-detail')}
-        title="Visit Report — FreshMart Garki"
-        subtitle="Submitted by Einstein Dare · 10 May 2026 · 14:32"
+        title={visit ? `Visit Report — ${visit.storeName}` : 'Visit Report'}
+        subtitle={
+          visit
+            ? `Submitted by ${personName(visit.merchandiser)} · ${formatDate(visit.visitDate || visit.creationDateTime)}`
+            : 'Select a visit'
+        }
         size="wide"
         footer={
           <>
@@ -138,86 +221,66 @@ export function FieldModals() {
           </>
         }
       >
-        <InfoBanner variant="succ" icon="clipboard">
-          This visit report was submitted by <strong>Einstein Dare (Merchandiser)</strong> and is visible
-          to <strong>CEO and all Admins</strong>.
-        </InfoBanner>
-        <div className="g2" style={{ marginBottom: 0 }}>
-          <div>
-            <SDivLabel style={{ marginTop: 0 }}>Store Information</SDivLabel>
-            <IRow label="Store" value="FreshMart Garki" />
-            <IRow label="Address" value="31 Garki Market Rd, Garki, FCT — Abuja" />
-            <IRow label="Merchandiser" value="Einstein Dare" />
-            <SDivLabel>Products Found on Shelf</SDivLabel>
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Product</th>
-                  <th style={{ textAlign: 'right' }}>Qty</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>SH-25-CAR</td>
-                  <td>Carabiner 250ml</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700 }}>12</td>
-                  <td>
-                    <Badge variant="green">Found</Badge>
-                  </td>
-                </tr>
-                <tr>
-                  <td>SH-25-HOK</td>
-                  <td>Silicone Hook Pack</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--rt)' }}>0</td>
-                  <td>
-                    <Badge variant="red">Out of Stock</Badge>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <div>
-            <SDivLabel style={{ marginTop: 0 }}>Shelf Photos (4)</SDivLabel>
-            <div className="photo-grid">
-              {[1, 2, 3, 4].map((n) => (
-                <div key={n} className="photo-thumb" style={{ background: 'var(--bg3)', fontSize: 20 }}>
-                  <Icon name="image" size={20} />
+        {!visit ? (
+          <InfoBanner>No visit selected.</InfoBanner>
+        ) : (
+          <>
+            <InfoBanner variant="succ" icon="clipboard">
+              This visit report was submitted by <strong>{personName(visit.merchandiser)}</strong> and is
+              visible to <strong>CEO and all Admins</strong>.
+            </InfoBanner>
+            <div className="g2" style={{ marginBottom: 0 }}>
+              <div>
+                <SDivLabel style={{ marginTop: 0 }}>Store Information</SDivLabel>
+                <IRow label="Store" value={visit.storeName} />
+                <IRow label="Address" value={visit.address || '—'} />
+                <IRow label="Category" value={visit.category || '—'} />
+                <IRow label="Merchandiser" value={personName(visit.merchandiser)} />
+                <SDivLabel>Shelf Coverage</SDivLabel>
+                <IRow
+                  label="Found"
+                  value={`${visit.skusFound ?? 0} of ${visit.skusTotal ?? 0} SKUs`}
+                />
+                <IRow
+                  label="Out of Stock"
+                  value={
+                    <Badge variant={(visit.skusOos ?? 0) > 0 ? 'red' : 'green'}>
+                      {(visit.skusOos ?? 0) > 0 ? `${visit.skusOos} OOS` : 'None'}
+                    </Badge>
+                  }
+                />
+              </div>
+              <div>
+                <SDivLabel style={{ marginTop: 0 }}>
+                  Shelf Photos ({visit.photoCount ?? 0})
+                </SDivLabel>
+                <div className="photo-grid">
+                  {Array.from({ length: Math.min(visit.photoCount ?? 0, 4) || 0 }).map((_, n) => (
+                    <div key={n} className="photo-thumb" style={{ background: 'var(--bg3)', fontSize: 20 }}>
+                      <Icon name="image" size={20} />
+                    </div>
+                  ))}
+                  {(visit.photoCount ?? 0) === 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--tx3)' }}>No photos attached.</div>
+                  )}
                 </div>
-              ))}
+                <SDivLabel>Competitor Intelligence</SDivLabel>
+                <IRow label="Brands Spotted" value={visit.competitors || '—'} />
+              </div>
             </div>
-            <SDivLabel>Competitor Intelligence</SDivLabel>
-            <IRow
-              label="Brands Spotted"
-              value={
-                <>
-                  <Badge variant="amber" style={{ marginRight: 4 }}>
-                    Dettol
-                  </Badge>
-                  <Badge variant="gray">Septol</Badge>
-                </>
-              }
-            />
-          </div>
-        </div>
-        <div className="visit-obs-block" style={{ marginTop: 12 }}>
-          <div className="visit-obs-label">
-            <IconLabel icon="search" size={13}>Competitor Observations</IconLabel>
-          </div>
-          Dettol is positioned at eye level on the primary shelf. Septol is running a Buy One Get One Free
-          promotion this week.
-        </div>
-        <div className="visit-obs-block" style={{ marginTop: 8, borderLeftColor: 'var(--G)' }}>
-          <div className="visit-obs-label" style={{ color: 'var(--Gd)' }}>
-            <IconLabel icon="file-text" size={13}>General Notes (Manager Feedback)</IconLabel>
-          </div>
-          Store manager requested more stock of the 500ml variant. SH-25-HOK has been out of stock for 2
-          weeks.
-        </div>
-        <div className="sdiv" />
-        <SDivLabel>Store Location</SDivLabel>
-        <LocationCardSection context="visit" />
+            {visit.notes ? (
+              <div className="visit-obs-block" style={{ marginTop: 12, borderLeftColor: 'var(--G)' }}>
+                <div className="visit-obs-label" style={{ color: 'var(--Gd)' }}>
+                  <IconLabel icon="file-text" size={13}>Notes</IconLabel>
+                </div>
+                {visit.notes}
+              </div>
+            ) : null}
+            <div className="sdiv" />
+            <SDivLabel>Store Location</SDivLabel>
+            <LocationCardSection context="visit" />
+          </>
+        )}
       </SartorModal>
 
       <SartorModal
@@ -230,24 +293,27 @@ export function FieldModals() {
           <ModalFooterActions onCancel={() => closeModal('market-intel')}>
             <Button
               variant="primary"
-              onClick={(e) => handleSubmit('market-intel', e.currentTarget, 'Market intelligence saved.')}
+              disabled={savingIntel}
+              onClick={(e) => void saveIntel(e.currentTarget)}
             >
-              Save Intel
+              {savingIntel ? 'Saving…' : 'Save Intel'}
             </Button>
           </ModalFooterActions>
         }
       >
         <FG label="Store *" full style={{ marginBottom: 10 }}>
-          <select className="sel" defaultValue="FreshMart Garki">
-            <option>FreshMart Garki</option>
-            <option>HealthPlus Maitama</option>
-          </select>
+          <input ref={intelStoreRef} className="inp" placeholder="Store name" />
         </FG>
         <FG label="Competitor Brands Spotted" full style={{ marginBottom: 10 }}>
-          <input className="inp" placeholder="e.g. Dettol, Septol…" />
+          <input ref={intelCompRef} className="inp" placeholder="Competitor brands" />
         </FG>
         <FG label="Observation Notes" full>
-          <textarea className="ta" rows={3} placeholder="Pricing, promotions, shelf positioning…" />
+          <textarea
+            ref={intelNotesRef}
+            className="ta"
+            rows={3}
+            placeholder="Pricing, promotions, shelf positioning…"
+          />
         </FG>
       </SartorModal>
     </>

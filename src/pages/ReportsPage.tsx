@@ -10,16 +10,24 @@ import {
   KpiGrid,
   Mono,
   PageHead,
+  QueryState,
   RoleGate,
   IconLabel,
 } from '../components/ui';
 import type { IconName } from '../types/icons';
-import { ReportRevenueChart, AgingChart } from '../components/charts/DashboardCharts';
+import { AgingChart, RevenueChart } from '../components/charts/DashboardCharts';
+import { catalogApi } from '../api/catalog';
+import { crmApi, leadName, refName, type CrmInvoice } from '../api/crm';
+import { opsApi } from '../api/ops';
 import { REPORT_TABS_BY_TIER, REPORT_TAB_UPGRADE } from '../constants/tiers';
 import { useApp } from '../context/AppContext';
 import { useModal } from '../context/ModalContext';
 import { useToast } from '../context/ToastContext';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useRoleGates } from '../hooks/useRoleGates';
+import { useAuthStore } from '../store/authStore';
+import { formatCompactNaira, formatDate, formatNaira, num } from '../utils/format';
+import { invoiceStatusVariant } from '../utils/statusBadges';
 
 const ALL_TABS: { id: string; label: string; icon: IconName }[] = [
   { id: 'overview', label: 'Overview', icon: 'chart' },
@@ -33,8 +41,32 @@ const ALL_TABS: { id: string; label: string; icon: IconName }[] = [
   { id: 'suppliers', label: 'Suppliers', icon: 'building' },
 ];
 
+function invoiceAmount(inv: CrmInvoice) {
+  return num(inv.totalAmount);
+}
+
+function isPaid(inv: CrmInvoice) {
+  return String(inv.status || '').toLowerCase() === 'paid';
+}
+
+function isOutstanding(inv: CrmInvoice) {
+  const s = String(inv.status || '').toLowerCase();
+  return s !== 'paid' && s !== 'cancelled';
+}
+
+function daysOutstanding(inv: CrmInvoice) {
+  const due = inv.dueDate ? new Date(inv.dueDate).getTime() : inv.creationDateTime;
+  if (!due) return 0;
+  return Math.max(0, Math.floor((Date.now() - Number(due)) / 86_400_000));
+}
+
+function customerOf(inv: CrmInvoice) {
+  return inv.name || leadName(typeof inv.lead === 'object' ? inv.lead : null);
+}
+
 export default function ReportsPage() {
   const { tier } = useApp();
+  const user = useAuthStore((s) => s.user);
   const { openModal } = useModal();
   const { showToast } = useToast();
   const { showInvConfirmPay } = useRoleGates();
@@ -42,6 +74,34 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState(allowedTabs[0] ?? 'overview');
   const [period, setPeriod] = useState('mtd');
   const [showCustom, setShowCustom] = useState(false);
+
+  const { data, loading, error } = useApiQuery(async () => {
+    const [dash, invoices, lpos, products, suppliers, restocks, returns, recons, commissionCfg, myCommissions] =
+      await Promise.all([
+        crmApi.dashboard().catch(() => null),
+        crmApi.listInvoices().catch(() => []),
+        crmApi.listLpos().catch(() => []),
+        catalogApi.listProducts().catch(() => []),
+        catalogApi.listSuppliers().catch(() => []),
+        catalogApi.listRestocks().catch(() => []),
+        opsApi.listReturns().catch(() => []),
+        opsApi.listRecons().catch(() => []),
+        crmApi.getCommissionConfig().catch(() => null),
+        user?._id ? crmApi.listUserCommissions(user._id).catch(() => []) : Promise.resolve([]),
+      ]);
+    return {
+      dash,
+      invoices,
+      lpos,
+      products,
+      suppliers,
+      restocks: restocks || [],
+      returns,
+      recons,
+      commissionCfg,
+      myCommissions,
+    };
+  }, [user?._id]);
 
   const tabs = useMemo(
     () => ALL_TABS.filter((t) => allowedTabs.includes(t.id) || REPORT_TAB_UPGRADE[t.id]),
@@ -57,12 +117,95 @@ export default function ReportsPage() {
     setActiveTab(id);
   };
 
+  const invoices = data?.invoices ?? [];
+  const lpos = data?.lpos ?? [];
+  const products = data?.products ?? [];
+  const suppliers = data?.suppliers ?? [];
+  const restocks = data?.restocks ?? [];
+  const returns = data?.returns ?? [];
+  const recons = data?.recons ?? [];
+  const dash = data?.dash;
+
+  const totalSales = dash?.cards.totalSales ?? lpos.reduce((s, l) => s + num(l.totalAmount), 0);
+  const paidTotal = invoices.filter(isPaid).reduce((s, i) => s + invoiceAmount(i), 0);
+  const outstandingTotal = invoices.filter(isOutstanding).reduce((s, i) => s + invoiceAmount(i), 0);
+  const overdueInvoices = invoices.filter((i) =>
+    String(i.status || '').toLowerCase().includes('overdue'),
+  );
+  const collectionRate = totalSales > 0 ? Math.round((paidTotal / totalSales) * 1000) / 10 : 0;
+  const returnValue = returns.reduce((s, r) => s + num(r.amount), 0);
+  const netSales = Math.max(0, totalSales - returnValue);
+  const unitsSold = lpos.reduce((s, l) => s + num(l.totalQuantity), 0);
+  const vatRate = 0.075;
+  const outputVat = Math.round(netSales * vatRate);
+  const openVariances = recons.filter((r) => Math.abs(num(r.variance)) > 0).length;
+
+  const agingBuckets = useMemo(() => {
+    const buckets = { current: 0, soon: 0, overdue: 0, risk: 0, counts: [0, 0, 0] as [number, number, number] };
+    for (const inv of invoices.filter(isOutstanding)) {
+      const days = daysOutstanding(inv);
+      const amt = invoiceAmount(inv);
+      if (days <= 30) {
+        buckets.current += amt;
+        buckets.counts[0] += 1;
+      } else if (days <= 60) {
+        buckets.soon += amt;
+        buckets.counts[1] += 1;
+      } else if (days <= 90) {
+        buckets.overdue += amt;
+        buckets.counts[2] += 1;
+      } else {
+        buckets.risk += amt;
+        buckets.counts[2] += 1;
+      }
+    }
+    return buckets;
+  }, [invoices]);
+
+  const topCustomers = useMemo(() => {
+    const map = new Map<string, { name: string; revenue: number; outstanding: number }>();
+    for (const inv of invoices) {
+      const name = customerOf(inv);
+      const row = map.get(name) ?? { name, revenue: 0, outstanding: 0 };
+      row.revenue += invoiceAmount(inv);
+      if (isOutstanding(inv)) row.outstanding += invoiceAmount(inv);
+      map.set(name, row);
+    }
+    return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  }, [invoices]);
+
+  const topReps = useMemo(() => {
+    const map = new Map<string, { name: string; revenue: number }>();
+    for (const inv of invoices) {
+      const name = refName(inv.user) || refName(inv.admin) || 'Unassigned';
+      const row = map.get(name) ?? { name, revenue: 0 };
+      row.revenue += invoiceAmount(inv);
+      map.set(name, row);
+    }
+    return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
+  }, [invoices]);
+
+  const rate = num(data?.commissionCfg?.price);
+  const commissions = data?.myCommissions ?? [];
+  const commissionEarned = commissions.reduce((s, c) => s + num(c.earned ?? c.totalAmount), 0);
+
+  const agingRows = invoices
+    .filter(isOutstanding)
+    .map((inv) => ({ inv, days: daysOutstanding(inv), amt: invoiceAmount(inv) }))
+    .sort((a, b) => b.days - a.days)
+    .slice(0, 12);
+
+  const restockUnits = restocks.reduce((s, r) => {
+    const lines = Array.isArray(r.products) ? r.products : [];
+    return s + lines.reduce((ls, p) => ls + num(p.quantity), 0);
+  }, 0);
+
   return (
     <>
       <PageHead
         icon="chart"
         title="Reports & Analytics"
-        subtitle="Select a report type. All reports respect the period filter above."
+        subtitle="Live workspace metrics. Period filter is for export labelling."
         actions={
           <>
             <Button variant="outline" size="sm" onClick={() => showToast('Exporting to Excel…', 'ok')}>
@@ -86,20 +229,20 @@ export default function ReportsPage() {
           }}
           style={{ minWidth: 160, padding: '6px 10px', fontSize: 12 }}
         >
-          <option value="mtd">This Month (May 2026)</option>
+          <option value="mtd">This Month</option>
           <option value="last">Last Month</option>
-          <option value="q">This Quarter (Q2 2026)</option>
-          <option value="ytd">Year to Date 2026</option>
+          <option value="q">This Quarter</option>
+          <option value="ytd">Year to Date</option>
           <option value="custom">Custom Range</option>
         </select>
         {showCustom && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input type="date" className="inp" style={{ width: 130, padding: '5px 8px', fontSize: 12 }} defaultValue="2026-05-01" />
+            <input type="date" className="inp" style={{ width: 130, padding: '5px 8px', fontSize: 12 }} />
             <span style={{ fontSize: 12, color: 'var(--tx3)' }}>to</span>
-            <input type="date" className="inp" style={{ width: 130, padding: '5px 8px', fontSize: 12 }} defaultValue="2026-05-12" />
+            <input type="date" className="inp" style={{ width: 130, padding: '5px 8px', fontSize: 12 }} />
           </div>
         )}
-        <Button size="sm" onClick={() => showToast('Filter applied.', 'ok')}>
+        <Button size="sm" onClick={() => showToast('Filter label applied.', 'ok')}>
           Apply
         </Button>
       </div>
@@ -122,503 +265,580 @@ export default function ReportsPage() {
         })}
       </div>
 
-      {activeTab === 'overview' && (
-        <div className="rpt-section">
-          <KpiGrid cols={4}>
-            <KpiCard label="Total Sales (LPOs)" value="₦8.4M" trend="↑ 14% vs Apr" trendType="up" smallValue />
-            <KpiCard label="Payments Received" value="₦6.2M" trend="73.8% collection rate" accent="green" smallValue />
-            <KpiCard label="Outstanding Balance" value="₦2.2M" trend="5 overdue invoices" trendType="down" accent="amber" smallValue />
-            <KpiCard label="Net Operating Income" value="₦2.5M" trend="Margin: 34.5%" trendType="up" accent="purple" smallValue />
-          </KpiGrid>
-          <div className="g2 mb">
-            <Card>
-              <CardHeader title="Revenue — Last 6 Months" />
-              <div className="chart-wrap">
-                <ReportRevenueChart />
-              </div>
-            </Card>
-            <Card>
-              <CardHeader title="Invoice Aging Breakdown" />
-              <div className="chart-wrap">
-                <AgingChart />
-              </div>
-            </Card>
-          </div>
-          <div className="g2">
-            <Card className="mb" padding={false}>
-              <div className="cp" style={{ paddingBottom: 0 }}>
-                <CardHeader icon="trophy" title="Top Customers" />
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Rank</th>
-                    <th>Customer</th>
-                    <th>Revenue</th>
-                    <th>Outstanding</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <span className="rank rank-1">1</span>
-                    </td>
-                    <td>Zenith Pharma</td>
-                    <td>
-                      <Mono style={{ fontWeight: 700 }}>₦1,240,000</Mono>
-                    </td>
-                    <td>
-                      <Mono style={{ color: 'var(--Gd)' }}>₦0</Mono>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="rank rank-2">2</span>
-                    </td>
-                    <td>FreshMart NG</td>
-                    <td>
-                      <Mono style={{ fontWeight: 700 }}>₦680,000</Mono>
-                    </td>
-                    <td>
-                      <Mono style={{ color: 'var(--at)' }}>₦140,000</Mono>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </Card>
-            <Card className="mb" padding={false}>
-              <div className="cp" style={{ paddingBottom: 0 }}>
-                <CardHeader icon="medal" title="Top Reps / Admins" />
-              </div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>Rank</th>
-                    <th>Name</th>
-                    <th>Revenue</th>
-                    <th>Commission</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <span className="rank rank-1">1</span>
-                    </td>
-                    <td>Abubakar (Admin)</td>
-                    <td>
-                      <Mono>₦820,000</Mono>
-                    </td>
-                    <td>
-                      <Mono style={{ color: 'var(--Gd)' }}>₦28,700</Mono>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <span className="rank rank-2">2</span>
-                    </td>
-                    <td>Emmanuel (Rep)</td>
-                    <td>
-                      <Mono>₦540,000</Mono>
-                    </td>
-                    <td>
-                      <Mono style={{ color: 'var(--Gd)' }}>₦13,500</Mono>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {activeTab === 'sales' && (
-        <div className="rpt-section">
-          <KpiGrid cols={4}>
-            <KpiCard label="Gross Sales" value="₦8,400,000" smallValue />
-            <KpiCard label="Less: Returns" value="₦54,000" accent="red" smallValue />
-            <KpiCard label="Net Sales" value="₦8,346,000" accent="green" smallValue />
-            <KpiCard label="Units Sold" value="2,680" accent="blue" />
-          </KpiGrid>
-          <DataTable>
-            <thead>
-              <tr>
-                <th>SKU</th>
-                <th>Product</th>
-                <th>Units Sold</th>
-                <th>Gross Revenue</th>
-                <th>Returns</th>
-                <th>Net Revenue</th>
-                <th>Margin</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <Mono style={{ fontSize: 11 }}>SH-25-CAR</Mono>
-                </td>
-                <td>Carabiner 250ml</td>
-                <td>
-                  <Mono>1,200</Mono>
-                </td>
-                <td>
-                  <Mono style={{ fontWeight: 700 }}>₦1,440,000</Mono>
-                </td>
-                <td>
-                  <Mono style={{ color: 'var(--rt)' }}>₦12,000</Mono>
-                </td>
-                <td>
-                  <Mono style={{ fontWeight: 700, color: 'var(--N)' }}>₦1,428,000</Mono>
-                </td>
-                <td style={{ color: 'var(--Gd)', fontWeight: 700 }}>35%</td>
-              </tr>
-            </tbody>
-          </DataTable>
-        </div>
-      )}
-
-      {activeTab === 'collections' && (
-        <div className="rpt-section">
-          <KpiGrid cols={4}>
-            <KpiCard label="Total Collected (MTD)" value="₦6,200,000" accent="green" smallValue />
-            <KpiCard label="Collection Rate" value="73.8%" trend="Target: 90%" />
-            <KpiCard label="30–60 Days Overdue" value="₦980,000" trend="3 invoices" accent="amber" smallValue />
-            <KpiCard label="60+ Days Overdue" value="₦276,000" trend="2 invoices — escalate" trendType="down" accent="red" smallValue />
-          </KpiGrid>
-          <DataTable>
-            <thead>
-              <tr>
-                <th>Invoice</th>
-                <th>Customer</th>
-                <th>Invoice Amt</th>
-                <th>Payments Received</th>
-                <th>Outstanding</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <Mono style={{ fontSize: 11 }}>INV-00042</Mono>
-                </td>
-                <td>FreshMart NG</td>
-                <td>
-                  <Mono>₦240,000</Mono>
-                </td>
-                <td>
-                  <Mono>₦100,000</Mono>
-                </td>
-                <td>
-                  <Mono style={{ fontWeight: 700, color: 'var(--at)' }}>₦140,000</Mono>
-                </td>
-                <td>
-                  <Badge variant="amber">Part Paid</Badge>
-                </td>
-              </tr>
-            </tbody>
-          </DataTable>
-        </div>
-      )}
-
-      {activeTab === 'aging' && (
-        <div className="rpt-section">
-          <KpiGrid cols={4}>
-            <KpiCard label="Current (0–30 days)" value="₦944,000" trend="8 invoices" accent="green" smallValue />
-            <KpiCard label="Due Soon (30–60 days)" value="₦980,000" trend="3 invoices" accent="amber" smallValue />
-            <KpiCard label="Overdue (60–90 days)" value="₦276,000" trend="2 invoices" trendType="down" accent="red" smallValue />
-            <KpiCard label="At Risk (90+ days)" value="₦0" trend="None this period" accent="red" smallValue />
-          </KpiGrid>
-          <InfoBanner variant="err">
-            INV-00039 (PharmaCare ₦180,000 · 68 days) and INV-00037 (MedPoint ₦96,000 · 63 days) are over 60 days.
-            Formal collection notice required.
-          </InfoBanner>
-          <DataTable>
-            <thead>
-              <tr>
-                <th>Invoice</th>
-                <th>Customer</th>
-                <th>Balance Due</th>
-                <th>Days Outstanding</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <Mono style={{ fontSize: 11 }}>INV-00039</Mono>
-                </td>
-                <td>PharmaCare Ltd</td>
-                <td>
-                  <Mono style={{ fontWeight: 700, color: 'var(--rt)' }}>₦180,000</Mono>
-                </td>
-                <td style={{ fontWeight: 700, color: 'var(--rt)' }}>68 days</td>
-                <td>
-                  <Button variant="danger" size="xs" onClick={() => showToast('Collection escalation sent to CEO.', 'warn')}>
-                    Escalate
-                  </Button>
-                </td>
-              </tr>
-              <tr>
-                <td>
-                  <Mono style={{ fontSize: 11 }}>INV-00042</Mono>
-                </td>
-                <td>FreshMart NG</td>
-                <td>
-                  <Mono style={{ fontWeight: 700, color: 'var(--at)' }}>₦140,000</Mono>
-                </td>
-                <td style={{ fontWeight: 700, color: 'var(--at)' }}>3 days</td>
-                <td>
-                  <Button variant="secondary" size="xs" onClick={() => openModal('add-payment')}>
-                    Add Payment
-                  </Button>
-                </td>
-              </tr>
-            </tbody>
-          </DataTable>
-        </div>
-      )}
-
-      {activeTab === 'pl' && (
-        <div className="rpt-section">
-          <Card style={{ borderTop: '3px solid var(--N)' }}>
-            <CardHeader title="Profit & Loss Statement" subtitle={<span style={{ fontSize: 11, color: 'var(--tx3)' }}>May 2026</span>} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-              <div>
-                <div className="sdiv-label" style={{ marginTop: 0 }}>
-                  Revenue
+      <QueryState loading={loading} error={error}>
+        {activeTab === 'overview' && (
+          <div className="rpt-section">
+            <KpiGrid cols={4}>
+              <KpiCard label="Total Sales (LPOs)" value={formatCompactNaira(totalSales)} smallValue />
+              <KpiCard
+                label="Payments Received"
+                value={formatCompactNaira(paidTotal)}
+                trend={`${collectionRate}% collection rate`}
+                accent="green"
+                smallValue
+              />
+              <KpiCard
+                label="Outstanding Balance"
+                value={formatCompactNaira(outstandingTotal)}
+                trend={`${overdueInvoices.length} overdue`}
+                trendType={overdueInvoices.length ? 'down' : 'up'}
+                accent="amber"
+                smallValue
+              />
+              <KpiCard
+                label="Customers"
+                value={String(dash?.cards.totalCustomers ?? topCustomers.length)}
+                accent="purple"
+              />
+            </KpiGrid>
+            <div className="g2 mb">
+              <Card>
+                <CardHeader title="Revenue Trend" />
+                <div className="chart-wrap">
+                  <RevenueChart monthlyRevenue={dash?.revenueChart?.monthlyRevenue} />
                 </div>
-                <div className="irow" style={{ marginBottom: 4 }}>
-                  <span className="ilbl" style={{ minWidth: 200 }}>
-                    Gross Sales (Invoiced)
-                  </span>
-                  <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right' }}>
-                    ₦8,400,000
-                  </span>
+              </Card>
+              <Card>
+                <CardHeader title="Invoice Aging Breakdown" />
+                <div className="chart-wrap">
+                  <AgingChart counts={agingBuckets.counts} />
                 </div>
-                <div className="irow" style={{ borderTop: '1px solid var(--brd)', paddingTop: 6, marginBottom: 12 }}>
-                  <span className="ilbl" style={{ minWidth: 200, fontWeight: 700, color: 'var(--N)' }}>
-                    Net Revenue
-                  </span>
-                  <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700, color: 'var(--N)' }}>
-                    ₦8,346,000
-                  </span>
-                </div>
-                <div className="sdiv-label" style={{ marginTop: 0 }}>
-                  Cost of Goods
-                </div>
-                <div className="irow" style={{ borderTop: '1px solid var(--brd)', paddingTop: 6 }}>
-                  <span className="ilbl" style={{ minWidth: 200, fontWeight: 700, color: 'var(--Gd)' }}>
-                    Gross Profit
-                  </span>
-                  <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700, color: 'var(--Gd)' }}>
-                    ₦2,878,200
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 6 }}>
-                  Gross Margin: <strong style={{ color: 'var(--Gd)' }}>34.5%</strong>
-                </div>
-              </div>
-              <div>
-                <div className="sdiv-label" style={{ marginTop: 0 }}>
-                  Operating Expenses
-                </div>
-                <div className="irow" style={{ borderTop: '2px solid var(--N)', paddingTop: 6, marginBottom: 14 }}>
-                  <span className="ilbl" style={{ minWidth: 200, fontWeight: 700, color: 'var(--N)' }}>
-                    Net Operating Income
-                  </span>
-                  <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700, color: 'var(--N)' }}>
-                    ₦2,544,200
-                  </span>
-                </div>
-                <div style={{ background: 'var(--Gb)', borderRadius: 8, padding: 12 }}>
-                  <div className="sdiv-label" style={{ marginTop: 0, color: 'var(--Gd)' }}>
-                    VAT Position — FIRS
-                  </div>
-                  <div className="irow" style={{ borderTop: '1px solid rgba(0,179,65,.3)', paddingTop: 5 }}>
-                    <span className="ilbl" style={{ minWidth: 140, fontWeight: 700, color: 'var(--Gd)' }}>
-                      VAT Payable to FIRS
-                    </span>
-                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: 'var(--Gd)' }}>
-                      ₦289,300
-                    </span>
-                  </div>
-                </div>
-              </div>
+              </Card>
             </div>
-          </Card>
-        </div>
-      )}
+            <div className="g2">
+              <Card className="mb" padding={false}>
+                <div className="cp" style={{ paddingBottom: 0 }}>
+                  <CardHeader icon="trophy" title="Top Customers" />
+                </div>
+                {topCustomers.length === 0 ? (
+                  <div style={{ padding: 16, color: 'var(--tx3)', fontSize: 13 }}>No invoice data yet.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Customer</th>
+                        <th>Revenue</th>
+                        <th>Outstanding</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topCustomers.map((c, i) => (
+                        <tr key={c.name}>
+                          <td>
+                            <span className={`rank rank-${Math.min(i + 1, 3)}`}>{i + 1}</span>
+                          </td>
+                          <td>{c.name}</td>
+                          <td>
+                            <Mono style={{ fontWeight: 700 }}>{formatNaira(c.revenue)}</Mono>
+                          </td>
+                          <td>
+                            <Mono style={{ color: c.outstanding ? 'var(--at)' : 'var(--Gd)' }}>
+                              {formatNaira(c.outstanding)}
+                            </Mono>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </Card>
+              <Card className="mb" padding={false}>
+                <div className="cp" style={{ paddingBottom: 0 }}>
+                  <CardHeader icon="medal" title="Top Reps / Admins" />
+                </div>
+                {topReps.length === 0 ? (
+                  <div style={{ padding: 16, color: 'var(--tx3)', fontSize: 13 }}>No sales attribution yet.</div>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Rank</th>
+                        <th>Name</th>
+                        <th>Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {topReps.map((r, i) => (
+                        <tr key={r.name}>
+                          <td>
+                            <span className={`rank rank-${Math.min(i + 1, 3)}`}>{i + 1}</span>
+                          </td>
+                          <td>{r.name}</td>
+                          <td>
+                            <Mono>{formatNaira(r.revenue)}</Mono>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </Card>
+            </div>
+          </div>
+        )}
 
-      {activeTab === 'commission' && (
-        <div className="rpt-section">
-          <KpiGrid cols={3}>
-            <KpiCard label="Total Commission Due (MTD)" value="₦53,600" smallValue />
-            <KpiCard label="Paid Out" value="₦13,500" accent="green" smallValue />
-            <KpiCard label="Outstanding" value="₦40,100" accent="amber" smallValue />
-          </KpiGrid>
-          <DataTable>
-            <thead>
-              <tr>
-                <th>Rep / Admin</th>
-                <th>Rate</th>
-                <th>Commission Earned</th>
-                <th>Outstanding</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <strong>Abubakar Idah</strong>
-                </td>
-                <td>3.5%</td>
-                <td>
-                  <Mono style={{ fontWeight: 700 }}>₦28,700</Mono>
-                </td>
-                <td>
-                  <Mono style={{ fontWeight: 700, color: 'var(--at)' }}>₦28,700</Mono>
-                </td>
-                <td>
-                  <Badge variant="amber">Pending</Badge>
-                </td>
-                <td>
-                  <RoleGate show={showInvConfirmPay}>
-                    <Button variant="green" size="xs" onClick={() => openModal('commission-payout')}>
-                      Pay Out
-                    </Button>
-                  </RoleGate>
-                </td>
-              </tr>
-            </tbody>
-          </DataTable>
-        </div>
-      )}
-
-      {activeTab === 'stock' && (
-        <div className="rpt-section">
-          <KpiGrid cols={4}>
-            <KpiCard label="GRNs This Month" value="4" />
-            <KpiCard label="Units Received" value="3,200" accent="green" />
-            <KpiCard label="Write-offs (Value)" value="₦28,000" accent="red" smallValue />
-            <KpiCard label="Open Variances" value="2" accent="amber" />
-          </KpiGrid>
-          <div className="sdiv-label">GRN Summary</div>
-          <DataTable>
-            <thead>
-              <tr>
-                <th>GRN No.</th>
-                <th>Supplier</th>
-                <th>Units Received</th>
-                <th>Value</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <Mono style={{ fontWeight: 700 }}>GRN-0004</Mono>
-                </td>
-                <td>West Africa Chemicals</td>
-                <td>
-                  <Mono>1,800</Mono>
-                </td>
-                <td>
-                  <Mono>₦1,404,000</Mono>
-                </td>
-                <td>
-                  <Badge variant="green">Full Acceptance</Badge>
-                </td>
-              </tr>
-            </tbody>
-          </DataTable>
-        </div>
-      )}
-
-      {activeTab === 'vat' && (
-        <div className="rpt-section">
-          <InfoBanner variant="warn">
-            <strong>VAT Filing Reminder:</strong> VAT Return Form 002 for May 2026 is due by 30 June 2026. VAT Payable
-            to FIRS: <strong>₦289,300</strong>.
-          </InfoBanner>
-          <KpiGrid cols={3}>
-            <KpiCard label="Output VAT Collected (7.5%)" value="₦472,500" accent="green" smallValue />
-            <KpiCard label="Input VAT (paid on purchases)" value="₦183,200" accent="red" smallValue />
-            <KpiCard label="VAT Payable to FIRS" value="₦289,300" smallValue />
-          </KpiGrid>
-          <Card>
-            <CardHeader title="VAT by Product Category" />
-            <table>
+        {activeTab === 'sales' && (
+          <div className="rpt-section">
+            <KpiGrid cols={4}>
+              <KpiCard label="Gross Sales" value={formatNaira(totalSales)} smallValue />
+              <KpiCard label="Less: Returns" value={formatNaira(returnValue)} accent="red" smallValue />
+              <KpiCard label="Net Sales" value={formatNaira(netSales)} accent="green" smallValue />
+              <KpiCard label="Units on LPOs" value={String(unitsSold)} accent="blue" />
+            </KpiGrid>
+            <DataTable>
               <thead>
                 <tr>
-                  <th>Category</th>
-                  <th>VAT Treatment</th>
-                  <th>Net Sales</th>
-                  <th>Output VAT</th>
+                  <th>SKU</th>
+                  <th>Product</th>
+                  <th>Stock</th>
+                  <th>Unit Price</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>Personal Care (Hand Sanitiser)</td>
-                  <td>
-                    <Badge variant="green">Taxable</Badge>
-                  </td>
-                  <td>
-                    <Mono>₦6,300,000</Mono>
-                  </td>
-                  <td>
-                    <Mono style={{ color: 'var(--N)', fontWeight: 700 }}>₦472,500</Mono>
-                  </td>
-                </tr>
+                {products.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>
+                      No products in catalog.
+                    </td>
+                  </tr>
+                ) : (
+                  products.slice(0, 20).map((p) => {
+                    const qty = num(p.totalQuantityAvailable);
+                    return (
+                      <tr key={p._id}>
+                        <td>
+                          <Mono style={{ fontSize: 11 }}>{p.skuCode || p.productId || '—'}</Mono>
+                        </td>
+                        <td>{p.productName || '—'}</td>
+                        <td>
+                          <Mono>{qty.toLocaleString()}</Mono>
+                        </td>
+                        <td>
+                          <Mono style={{ fontWeight: 700 }}>
+                            {formatNaira(p.sellingPrice ?? p.price)}
+                          </Mono>
+                        </td>
+                        <td>
+                          <Badge variant={qty <= 0 ? 'red' : qty < 100 ? 'amber' : 'green'}>
+                            {qty <= 0 ? 'OOS' : p.status || 'In-Stock'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
-            </table>
-            <div style={{ marginTop: 12 }}>
-              <Button size="sm" onClick={() => showToast('VAT return prepared. Review before filing.', 'ok')}>
-                Prepare VAT Return Form 002
-              </Button>
-            </div>
-          </Card>
-        </div>
-      )}
+            </DataTable>
+          </div>
+        )}
 
-      {activeTab === 'suppliers' && (
-        <div className="rpt-section">
-          <KpiGrid cols={3}>
-            <KpiCard label="Total Owed to Suppliers" value="₦1,200,000" accent="red" smallValue />
-            <KpiCard label="Overdue (30+ days)" value="₦480,000" accent="amber" smallValue />
-            <KpiCard label="Paid This Month" value="₦640,000" accent="green" smallValue />
-          </KpiGrid>
-          <DataTable>
-            <thead>
-              <tr>
-                <th>Supplier</th>
-                <th>Purchases (MTD)</th>
-                <th>Outstanding</th>
-                <th>Overdue</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>
-                  <strong>West Africa Chemicals</strong>
-                </td>
-                <td>
-                  <Mono>₦1,764,000</Mono>
-                </td>
-                <td>
-                  <Mono style={{ fontWeight: 700, color: 'var(--at)' }}>₦720,000</Mono>
-                </td>
-                <td>
-                  <Mono style={{ color: 'var(--rt)' }}>₦480,000</Mono>
-                </td>
-                <td>
-                  <Badge variant="red">Overdue</Badge>
-                </td>
-              </tr>
-            </tbody>
-          </DataTable>
-        </div>
-      )}
+        {activeTab === 'collections' && (
+          <div className="rpt-section">
+            <KpiGrid cols={4}>
+              <KpiCard label="Total Collected" value={formatNaira(paidTotal)} accent="green" smallValue />
+              <KpiCard label="Collection Rate" value={`${collectionRate}%`} />
+              <KpiCard
+                label="30–60 Days"
+                value={formatNaira(agingBuckets.soon)}
+                accent="amber"
+                smallValue
+              />
+              <KpiCard
+                label="60+ Days"
+                value={formatNaira(agingBuckets.overdue + agingBuckets.risk)}
+                accent="red"
+                smallValue
+              />
+            </KpiGrid>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Due</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoices.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>
+                      No invoices yet.
+                    </td>
+                  </tr>
+                ) : (
+                  invoices.slice(0, 25).map((inv) => (
+                    <tr key={inv._id}>
+                      <td>
+                        <Mono style={{ fontSize: 11 }}>{inv.invoiceId || inv._id.slice(-6)}</Mono>
+                      </td>
+                      <td>{customerOf(inv)}</td>
+                      <td>
+                        <Mono>{formatNaira(invoiceAmount(inv))}</Mono>
+                      </td>
+                      <td>{formatDate(inv.dueDate)}</td>
+                      <td>
+                        <Badge variant={invoiceStatusVariant(inv.status)}>{inv.status || '—'}</Badge>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </DataTable>
+          </div>
+        )}
+
+        {activeTab === 'aging' && (
+          <div className="rpt-section">
+            <KpiGrid cols={4}>
+              <KpiCard
+                label="Current (0–30 days)"
+                value={formatNaira(agingBuckets.current)}
+                accent="green"
+                smallValue
+              />
+              <KpiCard
+                label="Due Soon (30–60 days)"
+                value={formatNaira(agingBuckets.soon)}
+                accent="amber"
+                smallValue
+              />
+              <KpiCard
+                label="Overdue (60–90 days)"
+                value={formatNaira(agingBuckets.overdue)}
+                accent="red"
+                smallValue
+              />
+              <KpiCard
+                label="At Risk (90+ days)"
+                value={formatNaira(agingBuckets.risk)}
+                accent="red"
+                smallValue
+              />
+            </KpiGrid>
+            {agingRows.some((r) => r.days > 60) && (
+              <InfoBanner variant="err">
+                {agingRows.filter((r) => r.days > 60).length} invoice(s) over 60 days outstanding.
+              </InfoBanner>
+            )}
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Customer</th>
+                  <th>Balance Due</th>
+                  <th>Days Outstanding</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {agingRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>
+                      No outstanding invoices.
+                    </td>
+                  </tr>
+                ) : (
+                  agingRows.map(({ inv, days, amt }) => (
+                    <tr key={inv._id}>
+                      <td>
+                        <Mono style={{ fontSize: 11 }}>{inv.invoiceId || inv._id.slice(-6)}</Mono>
+                      </td>
+                      <td>{customerOf(inv)}</td>
+                      <td>
+                        <Mono style={{ fontWeight: 700, color: days > 60 ? 'var(--rt)' : 'var(--at)' }}>
+                          {formatNaira(amt)}
+                        </Mono>
+                      </td>
+                      <td style={{ fontWeight: 700, color: days > 60 ? 'var(--rt)' : undefined }}>
+                        {days} days
+                      </td>
+                      <td>
+                        <Button
+                          variant="secondary"
+                          size="xs"
+                          onClick={() => openModal('add-payment', { invoice: inv })}
+                        >
+                          Add Payment
+                        </Button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </DataTable>
+          </div>
+        )}
+
+        {activeTab === 'pl' && (
+          <div className="rpt-section">
+            <Card style={{ borderTop: '3px solid var(--N)' }}>
+              <CardHeader title="Profit & Loss Snapshot" subtitle={<span style={{ fontSize: 11, color: 'var(--tx3)' }}>From live LPO / invoice totals</span>} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                <div>
+                  <div className="sdiv-label" style={{ marginTop: 0 }}>
+                    Revenue
+                  </div>
+                  <div className="irow" style={{ marginBottom: 4 }}>
+                    <span className="ilbl" style={{ minWidth: 200 }}>
+                      Gross Sales (LPOs)
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right' }}>
+                      {formatNaira(totalSales)}
+                    </span>
+                  </div>
+                  <div className="irow" style={{ marginBottom: 4 }}>
+                    <span className="ilbl" style={{ minWidth: 200 }}>
+                      Returns
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', color: 'var(--rt)' }}>
+                      ({formatNaira(returnValue)})
+                    </span>
+                  </div>
+                  <div className="irow" style={{ borderTop: '1px solid var(--brd)', paddingTop: 6 }}>
+                    <span className="ilbl" style={{ minWidth: 200, fontWeight: 700, color: 'var(--N)' }}>
+                      Net Revenue
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700 }}>
+                      {formatNaira(netSales)}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <div className="sdiv-label" style={{ marginTop: 0 }}>
+                    Collections
+                  </div>
+                  <div className="irow" style={{ marginBottom: 4 }}>
+                    <span className="ilbl" style={{ minWidth: 200 }}>
+                      Paid Invoices
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', color: 'var(--Gd)' }}>
+                      {formatNaira(paidTotal)}
+                    </span>
+                  </div>
+                  <div className="irow" style={{ borderTop: '1px solid var(--brd)', paddingTop: 6 }}>
+                    <span className="ilbl" style={{ minWidth: 200, fontWeight: 700 }}>
+                      Outstanding
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700, color: 'var(--at)' }}>
+                      {formatNaira(outstandingTotal)}
+                    </span>
+                  </div>
+                  <div style={{ background: 'var(--Gb)', borderRadius: 8, padding: 12, marginTop: 14 }}>
+                    <div className="sdiv-label" style={{ marginTop: 0, color: 'var(--Gd)' }}>
+                      Estimated Output VAT (7.5%)
+                    </div>
+                    <div className="irow" style={{ borderTop: '1px solid rgba(0,179,65,.3)', paddingTop: 5 }}>
+                      <span className="ilbl" style={{ minWidth: 140, fontWeight: 700, color: 'var(--Gd)' }}>
+                        VAT on Net Sales
+                      </span>
+                      <span className="ival" style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: 'var(--Gd)' }}>
+                        {formatNaira(outputVat)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'commission' && (
+          <div className="rpt-section">
+            <KpiGrid cols={3}>
+              <KpiCard label="Configured Rate" value={rate ? `${rate}%` : '—'} />
+              <KpiCard label="My Commission Rows" value={String(commissions.length)} accent="green" />
+              <KpiCard label="Earned (listed)" value={formatNaira(commissionEarned)} accent="amber" smallValue />
+            </KpiGrid>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Invoice</th>
+                  <th>Customer</th>
+                  <th>Amount</th>
+                  <th>Earned</th>
+                  <th>Status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {commissions.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ color: 'var(--tx3)' }}>
+                      No commission records for this user yet.
+                    </td>
+                  </tr>
+                ) : (
+                  commissions.slice(0, 25).map((c) => (
+                    <tr key={c._id || c.commissionID}>
+                      <td>
+                        <Mono style={{ fontSize: 11 }}>{c.invoiceId || c.commissionID || '—'}</Mono>
+                      </td>
+                      <td>{customerOf(c)}</td>
+                      <td>
+                        <Mono>{formatNaira(c.totalAmount)}</Mono>
+                      </td>
+                      <td>
+                        <Mono style={{ fontWeight: 700 }}>{formatNaira(c.earned)}</Mono>
+                      </td>
+                      <td>
+                        <Badge variant={invoiceStatusVariant(c.status)}>{c.status || 'Pending'}</Badge>
+                      </td>
+                      <td>
+                        <RoleGate show={showInvConfirmPay}>
+                          <Button variant="green" size="xs" onClick={() => openModal('commission-payout')}>
+                            Pay Out
+                          </Button>
+                        </RoleGate>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </DataTable>
+          </div>
+        )}
+
+        {activeTab === 'stock' && (
+          <div className="rpt-section">
+            <KpiGrid cols={4}>
+              <KpiCard label="GRNs / Restocks" value={String(restocks.length)} />
+              <KpiCard label="Units Received" value={String(restockUnits)} accent="green" />
+              <KpiCard label="Catalog SKUs" value={String(products.length)} />
+              <KpiCard label="Open Variances" value={String(openVariances)} accent="amber" />
+            </KpiGrid>
+            <div className="sdiv-label">Recent Restocks</div>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Restock</th>
+                  <th>Supplier</th>
+                  <th>Lines</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {restocks.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ color: 'var(--tx3)' }}>
+                      No restock / GRN records yet.
+                    </td>
+                  </tr>
+                ) : (
+                  restocks.slice(0, 15).map((r) => {
+                    const supplier =
+                      typeof r.supplier === 'object' && r.supplier
+                        ? r.supplier.name || '—'
+                        : '—';
+                    return (
+                      <tr key={r._id}>
+                        <td>
+                          <Mono style={{ fontWeight: 700 }}>{r._id.slice(-8).toUpperCase()}</Mono>
+                        </td>
+                        <td>{supplier}</td>
+                        <td>
+                          <Mono>{Array.isArray(r.products) ? r.products.length : 0}</Mono>
+                        </td>
+                        <td>{formatDate(r.creationDateTime || r.createdAt)}</td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </DataTable>
+          </div>
+        )}
+
+        {activeTab === 'vat' && (
+          <div className="rpt-section">
+            <InfoBanner variant="warn">
+              Estimated output VAT at 7.5% on net sales. Confirm treatment with your tax advisor before filing.
+            </InfoBanner>
+            <KpiGrid cols={3}>
+              <KpiCard label="Net Sales Base" value={formatNaira(netSales)} accent="green" smallValue />
+              <KpiCard label="Output VAT (7.5%)" value={formatNaira(outputVat)} smallValue />
+              <KpiCard label="Paid Collections" value={formatNaira(paidTotal)} accent="green" smallValue />
+            </KpiGrid>
+            <Card>
+              <CardHeader title="VAT by Product Category" />
+              <table>
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>SKUs</th>
+                    <th>Stock Units</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(
+                    products.reduce<Record<string, { skus: number; units: number }>>((acc, p) => {
+                      const cat = p.productCategory || p.doraCategory || 'Uncategorised';
+                      const row = acc[cat] ?? { skus: 0, units: 0 };
+                      row.skus += 1;
+                      row.units += num(p.totalQuantityAvailable);
+                      acc[cat] = row;
+                      return acc;
+                    }, {}),
+                  ).map(([cat, row]) => (
+                    <tr key={cat}>
+                      <td>{cat}</td>
+                      <td>
+                        <Mono>{row.skus}</Mono>
+                      </td>
+                      <td>
+                        <Mono>{row.units.toLocaleString()}</Mono>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          </div>
+        )}
+
+        {activeTab === 'suppliers' && (
+          <div className="rpt-section">
+            <KpiGrid cols={3}>
+              <KpiCard label="Suppliers" value={String(suppliers.length)} />
+              <KpiCard label="Restocks Logged" value={String(restocks.length)} accent="green" />
+              <KpiCard label="Returns Logged" value={String(returns.length)} accent="amber" />
+            </KpiGrid>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Supplier</th>
+                  <th>Contact</th>
+                  <th>Phone</th>
+                  <th>Branch</th>
+                </tr>
+              </thead>
+              <tbody>
+                {suppliers.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} style={{ color: 'var(--tx3)' }}>
+                      No suppliers yet.
+                    </td>
+                  </tr>
+                ) : (
+                  suppliers.map((s) => (
+                    <tr key={s._id}>
+                      <td>
+                        <strong>{s.name || '—'}</strong>
+                      </td>
+                      <td>{s.contactName || s.email || '—'}</td>
+                      <td>{s.contactNumber || s.phone || '—'}</td>
+                      <td>{s.branch || '—'}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </DataTable>
+          </div>
+        )}
+      </QueryState>
     </>
   );
 }

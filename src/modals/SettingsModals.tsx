@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { IconLabel } from '../components/ui/Icon';
 import { SartorModal } from '../components/ui/SartorModal';
+import type { ApiSupplier } from '../api/catalog';
+import { opsApi } from '../api/ops';
+import type { ApiTeamUser } from '../api/team';
+import { useLiveOptions } from '../hooks/useLiveOptions';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
 const INVITE_ROLES = [
@@ -14,12 +18,64 @@ const INVITE_ROLES = [
   { value: 'merch', label: 'Merchandiser' },
 ];
 
+function roleSelectValue(role?: string) {
+  const r = (role || '').toLowerCase();
+  if (r.includes('admin')) return 'admin';
+  if (r.includes('rep') || r.includes('sales')) return 'rep';
+  if (r.includes('finance')) return 'finance';
+  if (r.includes('inv') || r.includes('inventory')) return 'inv';
+  if (r.includes('warehouse') || r === 'wh') return 'wh';
+  if (r.includes('driver')) return 'driver';
+  if (r.includes('merch')) return 'merch';
+  return '';
+}
+
 export function SettingsModals() {
-  const { isOpen, closeModal, handleSubmit } = useModalActions();
+  const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
+  const { warehouses } = useLiveOptions(isOpen('invite-user') || isOpen('supplier-payment'));
+  const supplier = getPayload<{ supplier?: ApiSupplier }>('supplier-payment')?.supplier;
+  const inviteUser = getPayload<{ user?: ApiTeamUser }>('invite-user')?.user;
+  const commissionUser = getPayload<{ user?: ApiTeamUser }>('set-commission')?.user;
   const [inviteRole, setInviteRole] = useState('');
+  const [savingWh, setSavingWh] = useState(false);
+
+  const inviteOpen = isOpen('invite-user');
+  useEffect(() => {
+    if (inviteOpen) {
+      setInviteRole(roleSelectValue(inviteUser?.role || inviteUser?.consoleRole));
+    }
+  }, [inviteOpen, inviteUser]);
+  const whNameRef = useRef<HTMLInputElement>(null);
+  const whAddrRef = useRef<HTMLInputElement>(null);
+  const whStateRef = useRef<HTMLSelectElement>(null);
+  const whLgaRef = useRef<HTMLInputElement>(null);
 
   const showComm = inviteRole === 'admin' || inviteRole === 'rep';
   const showWh = inviteRole === 'wh' || inviteRole === 'driver';
+
+  const saveWarehouse = async (btn: HTMLButtonElement | null) => {
+    const name = whNameRef.current?.value.trim() || '';
+    const address = whAddrRef.current?.value.trim() || '';
+    const state = whStateRef.current?.value.trim() || '';
+    const lga = whLgaRef.current?.value.trim() || '';
+    if (!name || !address) {
+      showToast('Name and address are required.', 'err');
+      return;
+    }
+    setSavingWh(true);
+    if (btn) btn.disabled = true;
+    try {
+      await opsApi.createWarehouse({ name, address, state, lga, status: 'Active' });
+      closeModal('add-warehouse');
+      showToast('Warehouse created.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to create warehouse', 'err');
+    } finally {
+      setSavingWh(false);
+      if (btn) btn.disabled = false;
+    }
+  };
 
   return (
     <>
@@ -27,29 +83,52 @@ export function SettingsModals() {
         id="invite-user"
         open={isOpen('invite-user')}
         onClose={() => closeModal('invite-user')}
-        title="Invite Team Member"
+        title={inviteUser ? 'Edit Team Member' : 'Invite Team Member'}
         footer={
           <ModalFooterActions onCancel={() => closeModal('invite-user')}>
             <Button
               variant="primary"
-              onClick={(e) => handleSubmit('invite-user', e.currentTarget, 'Invitation sent successfully.')}
+              onClick={(e) =>
+                handleSubmit(
+                  'invite-user',
+                  e.currentTarget,
+                  inviteUser ? 'User updated.' : 'Invitation sent successfully.',
+                )
+              }
             >
-              Send Invitation
+              {inviteUser ? 'Save Changes' : 'Send Invitation'}
             </Button>
           </ModalFooterActions>
         }
       >
         <FRow>
           <FG label="Full Name *" className="w50">
-            <input className="inp" placeholder="Full name" />
+            <input
+              className="inp"
+              placeholder="Full name"
+              key={`nm-${inviteUser?._id || 'new'}`}
+              defaultValue={inviteUser?.fullName || ''}
+            />
           </FG>
           <FG label="Email *" className="w50">
-            <input className="inp" type="email" placeholder="email@…" />
+            <input
+              className="inp"
+              type="email"
+              placeholder="email@…"
+              key={`em-${inviteUser?._id || 'new'}`}
+              defaultValue={inviteUser?.email || ''}
+            />
           </FG>
         </FRow>
         <FRow>
           <FG label="Phone *" className="w50">
-            <input className="inp" type="tel" placeholder="+234…" />
+            <input
+              className="inp"
+              type="tel"
+              placeholder="+234…"
+              key={`ph-${inviteUser?._id || 'new'}`}
+              defaultValue={inviteUser?.phone || ''}
+            />
           </FG>
           <FG label="Role *" className="w50">
             <select
@@ -100,9 +179,13 @@ export function SettingsModals() {
             }}
           >
             <FG label="Assign to Warehouse *" full>
-              <select className="sel" defaultValue="Abuja Central">
-                <option>Abuja Central</option>
-                <option>Lagos Hub</option>
+              <select className="sel" defaultValue="">
+                <option value="">Select warehouse…</option>
+                {warehouses.map((w) => (
+                  <option key={w._id} value={w._id}>
+                    {w.name}
+                  </option>
+                ))}
               </select>
             </FG>
           </div>
@@ -114,7 +197,11 @@ export function SettingsModals() {
         open={isOpen('set-commission')}
         onClose={() => closeModal('set-commission')}
         title="Edit Commission Rate"
-        subtitle="Abubakar Idah — Admin"
+        subtitle={
+          commissionUser
+            ? `${commissionUser.fullName || 'User'} — ${commissionUser.role || commissionUser.consoleRole || '—'}`
+            : undefined
+        }
         size="narrow"
         footer={
           <ModalFooterActions onCancel={() => closeModal('set-commission')}>
@@ -127,7 +214,7 @@ export function SettingsModals() {
           </ModalFooterActions>
         }
       >
-        <IRow label="Current Rate" value="3.5%" />
+        <IRow label="Current Rate" value="—" />
         <FRow>
           <FG label="New Rate (%) *">
             <input className="inp" type="number" step={0.5} />
@@ -148,30 +235,31 @@ export function SettingsModals() {
           <ModalFooterActions onCancel={() => closeModal('add-warehouse')}>
             <Button
               variant="green"
-              onClick={(e) => handleSubmit('add-warehouse', e.currentTarget, 'Warehouse created.')}
+              disabled={savingWh}
+              onClick={(e) => void saveWarehouse(e.currentTarget)}
             >
-              Create Warehouse
+              {savingWh ? 'Saving…' : 'Create Warehouse'}
             </Button>
           </ModalFooterActions>
         }
       >
         <FG label="Warehouse Name *" full style={{ marginBottom: 10 }}>
-          <input className="inp" placeholder="e.g. Port Harcourt Hub" />
+          <input ref={whNameRef} className="inp" placeholder="e.g. Port Harcourt Hub" />
         </FG>
         <FG label="Street Address *" full style={{ marginBottom: 10 }}>
-          <input className="inp" placeholder="Full address" />
+          <input ref={whAddrRef} className="inp" placeholder="Full address" />
         </FG>
         <FRow>
           <FG label="State *">
-            <select className="sel">
+            <select ref={whStateRef} className="sel" defaultValue="">
               <option value="">State…</option>
-              <option>FCT — Abuja</option>
-              <option>Lagos</option>
-              <option>Rivers</option>
+              <option value="FCT">FCT — Abuja</option>
+              <option value="Lagos">Lagos</option>
+              <option value="Rivers">Rivers</option>
             </select>
           </FG>
           <FG label="LGA *">
-            <input className="inp" placeholder="LGA" />
+            <input ref={whLgaRef} className="inp" placeholder="LGA" />
           </FG>
         </FRow>
       </SartorModal>
@@ -220,7 +308,7 @@ export function SettingsModals() {
         <SDivLabel style={{ marginTop: 0 }}>Supplier Details</SDivLabel>
         <FRow>
           <FG label="Company Name *" className="w50">
-            <input className="inp" placeholder="e.g. West Africa Chemicals Ltd" />
+            <input className="inp" placeholder="e.g. Supplier company name" />
           </FG>
           <FG label="Category *" className="w50">
             <select className="sel">
@@ -264,17 +352,13 @@ export function SettingsModals() {
         open={isOpen('supplier-payment')}
         onClose={() => closeModal('supplier-payment')}
         title="Record Supplier Payment"
-        subtitle="West Africa Chemicals Ltd — Outstanding: ₦720,000"
+        subtitle={supplier?.name || 'Select a supplier from the list'}
         footer={
           <ModalFooterActions onCancel={() => closeModal('supplier-payment')}>
             <Button
               variant="primary"
               onClick={(e) =>
-                handleSubmit(
-                  'supplier-payment',
-                  e.currentTarget,
-                  'Supplier payment recorded. GRN balances updated.',
-                )
+                handleSubmit('supplier-payment', e.currentTarget, 'Supplier payment recorded.')
               }
             >
               Record Payment
@@ -282,39 +366,16 @@ export function SettingsModals() {
           </ModalFooterActions>
         }
       >
-        <IRow label="Supplier" value={<strong>West Africa Chemicals Ltd</strong>} />
-        <IRow label="Total Outstanding" value="₦720,000" />
+        <IRow label="Supplier" value={<strong>{supplier?.name || '—'}</strong>} />
+        <IRow label="Contact" value={supplier?.contactName || supplier?.email || '—'} />
+        <IRow label="Phone" value={supplier?.contactNumber || supplier?.phone || '—'} />
         <div className="sdiv" />
-        <SDivLabel style={{ marginTop: 0 }}>Select GRN(s) This Payment Covers</SDivLabel>
-        <div style={{ border: '1px solid var(--brd)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
-          <label
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '24px 1fr 90px 100px',
-              gap: 10,
-              padding: '10px 12px',
-              cursor: 'pointer',
-              borderBottom: '1px solid var(--bg2)',
-            }}
-          >
-            <input type="checkbox" style={{ accentColor: 'var(--G)' }} />
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "'DM Mono',monospace" }}>
-                GRN-0004 — WAC-2024-0891
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--tx3)' }}>3 SKUs · Abuja Central</div>
-            </div>
-            <div style={{ textAlign: 'right', fontFamily: "'DM Mono',monospace", fontSize: 12 }}>
-              ₦480,000 unpaid
-            </div>
-          </label>
-        </div>
         <FRow>
           <FG label="Payment Amount *">
             <input className="inp" type="number" placeholder="0.00" />
           </FG>
           <FG label="Payment Date *">
-            <input className="inp" type="date" />
+            <input className="inp" type="date" defaultValue={new Date().toISOString().slice(0, 10)} />
           </FG>
         </FRow>
         <FG label="Payment Method *" full style={{ marginBottom: 10 }}>

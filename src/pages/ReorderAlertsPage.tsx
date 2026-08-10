@@ -1,28 +1,47 @@
-import { Badge, Button, DataTable, IconLabel, InfoBanner, KpiCard, KpiGrid, Mono, PageHead } from '../components/ui';
-import type { IconName } from '../types/icons';
+import {
+  Badge,
+  Button,
+  DataTable,
+  IconLabel,
+  InfoBanner,
+  KpiCard,
+  KpiGrid,
+  Mono,
+  PageHead,
+  QueryState,
+} from '../components/ui';
+import { opsApi } from '../api/ops';
 import { useModal } from '../context/ModalContext';
-
-const ALERTS: {
-  sku: string;
-  name: string;
-  stock: string;
-  committed: string;
-  reorder: string;
-  days: string;
-  alert: string;
-  alertIcon: IconName;
-  alertVariant: 'red' | 'amber';
-  replen: string;
-  replenVariant: 'gray' | 'teal';
-  primary?: boolean;
-}[] = [
-  { sku: 'SH-50-CAR', name: 'Hand Sanitiser 500ml', stock: '85', committed: '0', reorder: '500', days: '~3 days', alert: 'Critical', alertIcon: 'circle-alert', alertVariant: 'red', replen: 'No Request Raised', replenVariant: 'gray', primary: true },
-  { sku: 'SH-25-SIL', name: 'Hand Sanitiser 250ml Silicone', stock: '380', committed: '60', reorder: '500', days: '~12 days', alert: 'Low Stock', alertIcon: 'alert', alertVariant: 'amber', replen: 'Request Sent — CEO Review', replenVariant: 'teal' },
-  { sku: 'SH-25-HOK', name: 'Silicone Hook Pack', stock: '280', committed: '0', reorder: '400', days: '~18 days', alert: 'Low Stock', alertIcon: 'alert', alertVariant: 'amber', replen: 'No Request Raised', replenVariant: 'gray' },
-];
+import { useToast } from '../context/ToastContext';
+import { useApiQuery } from '../hooks/useApiQuery';
 
 export default function ReorderAlertsPage() {
   const { openModal } = useModal();
+  const { showToast } = useToast();
+  const { data, loading, error, reload } = useApiQuery(() => opsApi.reorderAlerts(), []);
+
+  const alerts = data?.data ?? [];
+  const critical = alerts.filter((a) => a.alert === 'Critical');
+  const low = alerts.filter((a) => a.alert === 'Low Stock');
+  const pending = data?.pendingRequests ?? 0;
+
+  const requestReplen = async (a: (typeof alerts)[0]) => {
+    try {
+      await opsApi.createReplenishment({
+        product: a.productId,
+        sku: a.sku,
+        productName: a.name,
+        currentStock: a.stock,
+        reorderLevel: a.reorderLevel,
+        requestedQty: Math.max(a.reorderLevel - a.stock, a.reorderLevel),
+        status: 'CEO Review',
+      });
+      showToast('Replenishment request submitted to CEO.', 'ok');
+      void reload();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Request failed', 'err');
+    }
+  };
 
   return (
     <>
@@ -38,75 +57,95 @@ export default function ReorderAlertsPage() {
       />
 
       <KpiGrid cols={3}>
-        <KpiCard label="Critical (0–20% of reorder level)" value="1" trend="Immediate action required" trendType="down" accent="red" />
-        <KpiCard label="Low Stock (below reorder level)" value="2" trend="Order within 7 days" accent="amber" />
-        <KpiCard label="Requests Pending CEO Approval" value="1" accent="blue" />
+        <KpiCard
+          label="Critical (0–20% of reorder level)"
+          value={String(critical.length)}
+          trend="Immediate action required"
+          trendType="down"
+          accent="red"
+        />
+        <KpiCard
+          label="Low Stock (below reorder level)"
+          value={String(low.length)}
+          trend="Order within 7 days"
+          accent="amber"
+        />
+        <KpiCard label="Requests Pending CEO Approval" value={String(pending)} accent="blue" />
       </KpiGrid>
 
-      <InfoBanner variant="err">
-        <strong>SH-50-CAR (Hand Sanitiser 500ml)</strong> has only 85 units — 17% of its 500-unit reorder level. Current
-        LPO commitments may deplete this SKU within 3 days. Raise replenishment request immediately.
-      </InfoBanner>
+      {critical[0] && (
+        <InfoBanner variant="err">
+          <strong>
+            {critical[0].sku} ({critical[0].name})
+          </strong>{' '}
+          has only {critical[0].stock} units — {critical[0].pct}% of its {critical[0].reorderLevel}-unit reorder
+          level. Raise replenishment request immediately.
+        </InfoBanner>
+      )}
 
-      <DataTable>
-        <thead>
-          <tr>
-            <th>SKU</th>
-            <th>Product Name</th>
-            <th>Available Stock</th>
-            <th>Committed</th>
-            <th>Reorder Level</th>
-            <th>Days Until Stockout</th>
-            <th>Alert Level</th>
-            <th>Replenishment Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ALERTS.map((a) => (
-            <tr key={a.sku}>
-              <td>
-                <Mono style={{ fontSize: 12 }}>{a.sku}</Mono>
-              </td>
-              <td>{a.name}</td>
-              <td>
-                <Mono style={{ fontWeight: 700, color: a.primary ? 'var(--rt)' : 'var(--at)' }}>{a.stock}</Mono>
-              </td>
-              <td>
-                <Mono>{a.committed}</Mono>
-              </td>
-              <td>
-                <Mono>{a.reorder}</Mono>
-              </td>
-              <td style={{ fontWeight: 700, color: a.primary ? 'var(--rt)' : 'var(--at)' }}>{a.days}</td>
-              <td>
-                <Badge variant={a.alertVariant}>
-                  <IconLabel icon={a.alertIcon} size={12}>
-                    {a.alert}
-                  </IconLabel>
-                </Badge>
-              </td>
-              <td>
-                <Badge variant={a.replenVariant}>{a.replen}</Badge>
-              </td>
-              <td>
-                <div style={{ display: 'flex', gap: 5 }}>
-                  <Button
-                    variant={a.replen.includes('Request Sent') ? 'secondary' : 'green'}
-                    size="sm"
-                    onClick={() => openModal('replenishment-request')}
-                  >
-                    {a.replen.includes('Request Sent') ? 'View Request' : 'Request Replenishment'}
-                  </Button>
-                  <Button variant="outline" size="xs" onClick={() => openModal('view-product')}>
-                    View Batches
-                  </Button>
-                </div>
-              </td>
+      <QueryState
+        loading={loading}
+        error={error}
+        empty={!alerts.length}
+        emptyMessage="All SKUs are above reorder levels."
+      >
+        <DataTable>
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product</th>
+              <th>Stock</th>
+              <th>Reorder Level</th>
+              <th>% of Level</th>
+              <th>Alert</th>
+              <th>Replenishment</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </DataTable>
+          </thead>
+          <tbody>
+            {alerts.map((a) => (
+              <tr key={a.productId}>
+                <td>
+                  <Mono style={{ fontSize: 12 }}>{a.sku}</Mono>
+                </td>
+                <td>{a.name}</td>
+                <td>
+                  <Mono>{a.stock.toLocaleString()}</Mono>
+                </td>
+                <td>
+                  <Mono>{a.reorderLevel.toLocaleString()}</Mono>
+                </td>
+                <td>{a.pct}%</td>
+                <td>
+                  <Badge variant={a.alert === 'Critical' ? 'red' : 'amber'}>
+                    <IconLabel icon={a.alert === 'Critical' ? 'circle-alert' : 'alert'} size={12}>
+                      {a.alert}
+                    </IconLabel>
+                  </Badge>
+                </td>
+                <td>
+                  <Badge variant={a.replenishment ? 'teal' : 'gray'}>
+                    {a.replenishment
+                      ? `${a.replenishment.status} · qty ${a.replenishment.requestedQty}`
+                      : 'No Request Raised'}
+                  </Badge>
+                </td>
+                <td>
+                  {!a.replenishment ? (
+                    <Button variant="green" size="xs" onClick={() => void requestReplen(a)}>
+                      Request
+                    </Button>
+                  ) : (
+                    <Button variant="outline" size="xs" onClick={() => openModal('replenishment-request')}>
+                      View
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
+      </QueryState>
     </>
   );
 }

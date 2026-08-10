@@ -1,105 +1,110 @@
-import { Badge, Button, DataTable, InfoBanner, KpiCard, KpiGrid, Mono, PageHead } from '../components/ui';
+import {
+  Badge,
+  Button,
+  DataTable,
+  InfoBanner,
+  KpiCard,
+  KpiGrid,
+  Mono,
+  PageHead,
+  QueryState,
+} from '../components/ui';
+import { opsApi } from '../api/ops';
 import { useModal } from '../context/ModalContext';
-
-const RECON_ROWS = [
-  { date: '10 May 2026', sku: 'SH-25-CAR', product: 'Carabiner 250ml', system: '2,340', physical: '2,326', variance: '-14', varPct: '-0.6%', status: 'Under Investigation', statusVariant: 'amber' as const, actions: true },
-  { date: '10 May 2026', sku: 'SH-25-SIL', product: 'Silicone 250ml', system: '380', physical: '380', variance: '0', varPct: '0.0%', status: 'Reconciled', statusVariant: 'green' as const },
-  { date: '30 Apr 2026', sku: 'SH-50-CAR', product: '500ml', system: '92', physical: '85', variance: '-7', varPct: '-7.6%', status: 'Variance Approved — Adjusted', statusVariant: 'red' as const, report: true },
-];
+import { useApiQuery } from '../hooks/useApiQuery';
+import { formatDate } from '../utils/format';
 
 export default function ReconciliationPage() {
   const { openModal } = useModal();
+  const { data: rows = [], loading, error } = useApiQuery(() => opsApi.listRecons(), []);
+
+  const matched = (rows ?? []).filter((r) => r.status === 'Matched').length;
+  const investigating = (rows ?? []).filter((r) => r.status === 'Under Investigation').length;
+  const adjusted = (rows ?? []).filter((r) => r.status === 'Adjusted').length;
 
   return (
     <>
       <PageHead
-        icon="hash"
+        icon="clipboard"
         title="Stock Reconciliation"
-        subtitle="Formal cycle count. Physical count vs system count. Variances require CEO investigation before adjustment."
+        subtitle="Physical counts vs system stock."
         actions={
           <Button variant="green" size="sm" onClick={() => openModal('stock-recon-count')}>
-            + Start Cycle Count
+            + New Count
           </Button>
         }
       />
 
       <InfoBanner>
-        A <strong>cycle count</strong> is a scheduled, partial physical count — typically one SKU category per week —
-        rather than a full stocktake. Variances exceeding 2% must be investigated before any stock adjustment is approved.
+        Log physical counts regularly. Variances open an investigation until adjusted or matched.
       </InfoBanner>
 
       <KpiGrid cols={3}>
-        <KpiCard
-          label="Last Full Count"
-          value={<span style={{ fontSize: 15, fontFamily: "'DM Mono', monospace" }}>30 Apr 2026</span>}
-          trend="12 days ago"
-        />
-        <KpiCard label="Open Variances" value="2" trend="Pending investigation" trendType="down" accent="amber" />
-        <KpiCard
-          label="Next Scheduled Count"
-          value={<span style={{ fontSize: 15, fontFamily: "'DM Mono', monospace" }}>17 May 2026</span>}
-        />
+        <KpiCard label="Matched" value={String(matched)} accent="green" />
+        <KpiCard label="Under Investigation" value={String(investigating)} accent="amber" />
+        <KpiCard label="Adjusted" value={String(adjusted)} accent="blue" />
       </KpiGrid>
 
-      <DataTable>
-        <thead>
-          <tr>
-            <th>Count Date</th>
-            <th>SKU</th>
-            <th>Product</th>
-            <th>System Count</th>
-            <th>Physical Count</th>
-            <th>Variance</th>
-            <th>Var %</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {RECON_ROWS.map((r) => (
-            <tr key={r.sku + r.date}>
-              <td>{r.date}</td>
-              <td>
-                <Mono style={{ fontSize: 11 }}>{r.sku}</Mono>
-              </td>
-              <td>{r.product}</td>
-              <td>
-                <Mono>{r.system}</Mono>
-              </td>
-              <td>
-                <Mono>{r.physical}</Mono>
-              </td>
-              <td>
-                <Mono style={{ fontWeight: 700, color: r.variance === '0' ? 'var(--Gd)' : 'var(--rt)' }}>
-                  {r.variance}
-                </Mono>
-              </td>
-              <td style={{ fontWeight: 700, color: r.variance === '0' ? 'var(--Gd)' : 'var(--rt)' }}>{r.varPct}</td>
-              <td>
-                <Badge variant={r.statusVariant}>{r.status}</Badge>
-              </td>
-              <td>
-                {r.actions ? (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <Button variant="secondary" size="xs" onClick={() => openModal('stock-adjust')}>
-                      Adjust
-                    </Button>
-                    <Button variant="outline" size="xs">
-                      Report
-                    </Button>
-                  </div>
-                ) : r.report ? (
-                  <Button variant="outline" size="xs">
-                    View Report
-                  </Button>
-                ) : (
-                  '—'
-                )}
-              </td>
+      <QueryState
+        loading={loading}
+        error={error}
+        empty={!rows?.length}
+        emptyMessage="No reconciliation counts yet."
+      >
+        <DataTable>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>SKU</th>
+              <th>Product</th>
+              <th>System</th>
+              <th>Physical</th>
+              <th>Variance</th>
+              <th>Status</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </DataTable>
+          </thead>
+          <tbody>
+            {(rows ?? []).map((r) => {
+              const variance = r.variance ?? 0;
+              return (
+                <tr key={r._id}>
+                  <td>{formatDate(r.countDate || r.creationDateTime)}</td>
+                  <td>
+                    <Mono style={{ fontSize: 12 }}>{r.sku || '—'}</Mono>
+                  </td>
+                  <td>{r.productName || '—'}</td>
+                  <td>
+                    <Mono>{(r.systemQty ?? 0).toLocaleString()}</Mono>
+                  </td>
+                  <td>
+                    <Mono>{(r.physicalQty ?? 0).toLocaleString()}</Mono>
+                  </td>
+                  <td>
+                    <Mono style={{ color: variance === 0 ? 'var(--Gd)' : 'var(--at)' }}>
+                      {variance > 0 ? `+${variance}` : variance}
+                    </Mono>
+                  </td>
+                  <td>
+                    <Badge
+                      variant={
+                        r.status === 'Matched' ? 'green' : r.status === 'Adjusted' ? 'blue' : 'amber'
+                      }
+                    >
+                      {r.status}
+                    </Badge>
+                  </td>
+                  <td>
+                    <Button variant="outline" size="xs" onClick={() => openModal('stock-recon-count')}>
+                      Review
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </DataTable>
+      </QueryState>
     </>
   );
 }

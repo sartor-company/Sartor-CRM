@@ -1,17 +1,36 @@
-import { Badge, Button, DataTable, Mono, PageHead, SearchBar } from '../components/ui';
+import { Badge, Button, DataTable, Mono, PageHead, QueryState, SearchBar } from '../components/ui';
+import { opsApi } from '../api/ops';
 import { useModal } from '../context/ModalContext';
+import { useToast } from '../context/ToastContext';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useTableFilter } from '../hooks/useTableFilter';
+import { formatDate, formatNaira } from '../utils/format';
+import { lpoStatusVariant } from '../utils/statusBadges';
 
-const PACK_ROWS = [
-  { id: 'LPO-0039', customer: 'Konga Health', skus: '2 SKUs', qty: '180 units', amount: '₦236,000', assigned: '8 May 2026', status: 'Assigned', statusVariant: 'blue' as const, action: 'Pack LPO', actionVariant: 'green' as const },
-  { id: 'LPO-0036', customer: 'SafeZone Pharma', skus: '2 SKUs', qty: '120 units', amount: '₦144,000', assigned: '6 May 2026', status: 'In Progress', statusVariant: 'amber' as const, action: 'Continue', actionVariant: 'secondary' as const },
-];
+function leadName(lead: { name?: string } | string | null | undefined) {
+  if (!lead) return '—';
+  if (typeof lead === 'string') return lead;
+  return lead.name || '—';
+}
 
 export default function PackLposPage() {
   const { openModal } = useModal();
-  const { search, setSearch, filtered } = useTableFilter(PACK_ROWS, '', (row, q) =>
-    [row.id, row.customer].some((v) => v.toLowerCase().includes(q)),
+  const { showToast } = useToast();
+  const { data: rows = [], loading, error, reload } = useApiQuery(() => opsApi.packQueue(), []);
+
+  const { search, setSearch, filtered } = useTableFilter(rows ?? [], '', (row, q) =>
+    [row.lpoId, leadName(row.lead), row.status].some((v) => String(v || '').toLowerCase().includes(q)),
   );
+
+  const pack = async (id: string) => {
+    try {
+      await opsApi.packLpo(id);
+      showToast('LPO packed — moved to dispatch queue.', 'ok');
+      void reload();
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Pack failed', 'err');
+    }
+  };
 
   return (
     <>
@@ -23,44 +42,58 @@ export default function PackLposPage() {
 
       <SearchBar placeholder="Search LPOs to pack…" value={search} onChange={setSearch} />
 
-      <DataTable id="pack-table">
-        <thead>
-          <tr>
-            <th>LPO No.</th>
-            <th>Customer</th>
-            <th>SKUs</th>
-            <th>Total Qty</th>
-            <th>Amount</th>
-            <th>Assigned</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((row) => (
-            <tr key={row.id}>
-              <td>
-                <Mono style={{ fontSize: 12 }}>{row.id}</Mono>
-              </td>
-              <td>{row.customer}</td>
-              <td>{row.skus}</td>
-              <td>{row.qty}</td>
-              <td>
-                <Mono>{row.amount}</Mono>
-              </td>
-              <td>{row.assigned}</td>
-              <td>
-                <Badge variant={row.statusVariant}>{row.status}</Badge>
-              </td>
-              <td>
-                <Button variant={row.actionVariant} size="sm" onClick={() => openModal('pack-lpo')}>
-                  {row.action}
-                </Button>
-              </td>
+      <QueryState
+        loading={loading}
+        error={error}
+        empty={!filtered.length}
+        emptyMessage="No LPOs waiting to be packed."
+      >
+        <DataTable>
+          <thead>
+            <tr>
+              <th>LPO No.</th>
+              <th>Customer</th>
+              <th>SKUs</th>
+              <th>Qty</th>
+              <th>Amount</th>
+              <th>Assigned</th>
+              <th>Status</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </DataTable>
+          </thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r._id}>
+                <td>
+                  <Mono style={{ fontSize: 12 }}>{r.lpoId || r._id.slice(-6)}</Mono>
+                </td>
+                <td>{leadName(r.lead)}</td>
+                <td>{r.skuCount ?? 0} SKUs</td>
+                <td>
+                  <Mono>{(r.totalQuantity ?? 0).toLocaleString()} units</Mono>
+                </td>
+                <td>
+                  <Mono>{formatNaira(r.totalAmount)}</Mono>
+                </td>
+                <td>{formatDate(r.assignedAt || r.creationDateTime)}</td>
+                <td>
+                  <Badge variant={lpoStatusVariant(r.status)}>{r.status}</Badge>
+                </td>
+                <td>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <Button variant="green" size="xs" onClick={() => void pack(r._id)}>
+                      Pack LPO
+                    </Button>
+                    <Button variant="outline" size="xs" onClick={() => openModal('pack-lpo')}>
+                      Details
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
+      </QueryState>
     </>
   );
 }

@@ -7,11 +7,21 @@ import { useApp } from '../../context/AppContext';
 import { Icon } from '../ui/Icon';
 import type { PageId } from '../../types';
 
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() || '')
+    .join('') || '?';
+}
+
 export function Sidebar() {
-  const { role, tier, sidebarOpen, closeSidebar } = useApp();
+  const { role, tier, sidebarOpen, closeSidebar, displayName, roleLabel, logout } = useApp();
   const meta = ROLE_META[role];
   const items = NAV_CONFIG[role] ?? [];
   const allowed = TIER_GATES[tier];
+  const av = initials(displayName) || meta.av;
 
   return (
     <nav id="sb" className={sidebarOpen ? 'open' : ''}>
@@ -64,16 +74,21 @@ export function Sidebar() {
       <div className="sbfoot">
         <div className="sb-user">
           <div className="av" style={{ background: meta.color }}>
-            {meta.av}
+            {av}
           </div>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <div className="sb-uname">{meta.name}</div>
-            <div className="sb-urole">{meta.role}</div>
-          </div>
-          <div className="rpill" style={{ background: 'rgba(0,179,65,.2)', color: 'var(--G)' }}>
-            {role.toUpperCase()}
+            <div className="sb-uname">{displayName}</div>
+            <div className="sb-urole">{roleLabel}</div>
           </div>
         </div>
+        <button
+          type="button"
+          className="btn bout bsm"
+          style={{ width: '100%', marginTop: 10, justifyContent: 'center', color: 'rgba(255,255,255,.75)', borderColor: 'rgba(255,255,255,.2)' }}
+          onClick={logout}
+        >
+          Sign out
+        </button>
       </div>
     </nav>
   );

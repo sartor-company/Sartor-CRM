@@ -1,31 +1,53 @@
-import { Badge, DataTable, KpiCard, KpiGrid, Mono, PageHead, SearchBar } from '../components/ui';
+import { Badge, DataTable, InfoBanner, KpiCard, KpiGrid, Mono, PageHead, SearchBar } from '../components/ui';
+import { crmApi, leadName } from '../api/crm';
+import { useAuthStore } from '../store/authStore';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useTableFilter } from '../hooks/useTableFilter';
-
-const MY_COMMISSIONS = [
-  { invoice: 'INV-00040', customer: 'HealthPlus', amount: '₦96,000', rate: '3.5%', commission: '₦3,360', confirmedBy: 'Nwachukwu C. (CEO)', month: 'May 2026', status: 'Confirmed', statusVariant: 'green' as const },
-  { invoice: 'INV-00036', customer: 'City Pharmacy', amount: '₦72,000', rate: '3.5%', commission: '₦2,520', confirmedBy: 'Okeke David (Finance)', month: 'Apr 2026', status: 'Paid Out', statusVariant: 'green' as const },
-];
+import { formatDate, formatNaira, num } from '../utils/format';
+import { invoiceStatusVariant } from '../utils/statusBadges';
 
 export default function MyCommissionsPage() {
-  const { search, setSearch, filtered } = useTableFilter(MY_COMMISSIONS, '', (row, q) =>
-    [row.invoice, row.customer, row.month].some((v) => v.toLowerCase().includes(q)),
+  const user = useAuthStore((s) => s.user);
+  const { data: config } = useApiQuery(() => crmApi.getCommissionConfig(), []);
+  const { data, loading, error, reload } = useApiQuery(async () => {
+    if (!user?._id) return [];
+    return crmApi.listUserCommissions(user._id);
+  }, [user?._id]);
+
+  const rows = data ?? [];
+  const { search, setSearch, filtered } = useTableFilter(rows, '', (row, q) =>
+    [row.invoiceId, row.name, leadName(typeof row.lead === 'object' ? row.lead : null), row.status]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q)),
   );
+
+  const totalDue = rows.reduce((s, c) => s + num(c.earned), 0);
+  const rateLabel = config?.price ? `÷ ${config.price}` : '—';
 
   return (
     <>
       <PageHead icon="dollar" title="My Commissions" />
 
+      {error && (
+        <InfoBanner variant="err" style={{ marginBottom: 12 }}>
+          {error}{' '}
+          <button type="button" className="ca" onClick={() => void reload()}>
+            Retry
+          </button>
+        </InfoBanner>
+      )}
+
       <div className="comm-card mb">
-        <div className="comm-card-rate">3.5% Rate</div>
-        <div className="comm-card-lbl">Total Due — May 2026</div>
-        <div className="comm-card-amt">₦28,700</div>
-        <div className="comm-card-sub">From 5 CEO/Finance-confirmed invoices</div>
+        <div className="comm-card-rate">{rateLabel} Rate</div>
+        <div className="comm-card-lbl">Total Earned</div>
+        <div className="comm-card-amt">{loading ? '…' : formatNaira(totalDue)}</div>
+        <div className="comm-card-sub">From {rows.length} commissionable invoice{rows.length === 1 ? '' : 's'}</div>
       </div>
 
       <KpiGrid cols={3}>
-        <KpiCard label="This Month" value="₦28,700" accent="green" smallValue />
-        <KpiCard label="YTD" value="₦112,400" smallValue />
-        <KpiCard label="Paid Out YTD" value="₦83,700" accent="blue" smallValue />
+        <KpiCard label="Total Earned" value={formatNaira(totalDue)} accent="green" smallValue />
+        <KpiCard label="Entries" value={String(rows.length)} smallValue />
+        <KpiCard label="Rate Config" value={rateLabel} accent="blue" smallValue />
       </KpiGrid>
 
       <SearchBar placeholder="Search commission history…" value={search} onChange={setSearch} />
@@ -38,32 +60,44 @@ export default function MyCommissionsPage() {
             <th>Amount</th>
             <th>Rate</th>
             <th>Commission</th>
-            <th>Confirmed By</th>
-            <th>Month</th>
+            <th>Date</th>
             <th>Status</th>
           </tr>
         </thead>
         <tbody>
-          {filtered.map((c) => (
-            <tr key={c.invoice}>
-              <td>
-                <Mono style={{ fontSize: 12 }}>{c.invoice}</Mono>
-              </td>
-              <td>{c.customer}</td>
-              <td>
-                <Mono>{c.amount}</Mono>
-              </td>
-              <td>{c.rate}</td>
-              <td>
-                <Mono style={{ fontWeight: 700, color: 'var(--N)' }}>{c.commission}</Mono>
-              </td>
-              <td>{c.confirmedBy}</td>
-              <td>{c.month}</td>
-              <td>
-                <Badge variant={c.statusVariant}>{c.status}</Badge>
+          {loading && !data ? (
+            <tr>
+              <td colSpan={7} style={{ color: 'var(--tx3)' }}>
+                Loading commissions…
               </td>
             </tr>
-          ))}
+          ) : filtered.length === 0 ? (
+            <tr>
+              <td colSpan={7} style={{ color: 'var(--tx3)' }}>
+                No commission entries yet.
+              </td>
+            </tr>
+          ) : (
+            filtered.map((c) => (
+              <tr key={c.commissionID || c._id}>
+                <td>
+                  <Mono style={{ fontSize: 12 }}>{c.invoiceId || c._id.slice(-6)}</Mono>
+                </td>
+                <td>{c.name || leadName(typeof c.lead === 'object' ? c.lead : null)}</td>
+                <td>
+                  <Mono>{formatNaira(num(c.totalAmount))}</Mono>
+                </td>
+                <td>{rateLabel}</td>
+                <td>
+                  <Mono style={{ fontWeight: 700, color: 'var(--N)' }}>{formatNaira(num(c.earned))}</Mono>
+                </td>
+                <td>{formatDate(c.creationDateTime || c.dueDate)}</td>
+                <td>
+                  <Badge variant={invoiceStatusVariant(c.status)}>{c.status || '—'}</Badge>
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </DataTable>
     </>

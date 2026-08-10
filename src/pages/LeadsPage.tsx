@@ -1,27 +1,59 @@
-import { ActionDropdown, Badge, Button, DataTable, PageHead, SearchBar } from '../components/ui';
+import { useEffect } from 'react';
+import { ActionDropdown, Badge, Button, DataTable, InfoBanner, PageHead, SearchBar } from '../components/ui';
+import { crmApi, refName, type CrmLead } from '../api/crm';
 import { useModal } from '../context/ModalContext';
-import { MOCK_LEADS } from '../data/mock';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useRoleGates } from '../hooks/useRoleGates';
 import { useTableFilter } from '../hooks/useTableFilter';
+import { formatDate } from '../utils/format';
+import { leadStatusVariant } from '../utils/statusBadges';
+
+function locationOf(lead: CrmLead) {
+  return [lead.lga, lead.state].filter(Boolean).join(', ') || lead.address || '—';
+}
 
 export default function LeadsPage() {
   const { openModal } = useModal();
   const { showCeoAdmin } = useRoleGates();
-  const { search, setSearch, filtered } = useTableFilter(MOCK_LEADS, '', (row, q) =>
-    [row.name, row.location, row.stage, row.rep].some((v) => v.toLowerCase().includes(q)),
+  const { data, loading, error, reload } = useApiQuery(() => crmApi.listLeads(), []);
+  const leads = data ?? [];
+
+  useEffect(() => {
+    const onChange = () => void reload();
+    window.addEventListener('crm-leads-changed', onChange);
+    return () => window.removeEventListener('crm-leads-changed', onChange);
+  }, [reload]);
+
+  const { search, setSearch, filtered } = useTableFilter(leads, '', (row, q) =>
+    [row.name, locationOf(row), row.status, refName(row.user), row.type]
+      .filter(Boolean)
+      .some((v) => String(v).toLowerCase().includes(q)),
   );
 
   return (
     <>
       <PageHead
         title="All Leads"
-        subtitle="84 leads across all reps."
+        subtitle={loading ? 'Loading…' : `${leads.length} leads across all reps.`}
         actions={
-          <Button variant="green" size="sm" onClick={() => openModal('add-lead')}>
+          <Button
+            variant="green"
+            size="sm"
+            onClick={() => openModal('add-lead')}
+          >
             + New Lead
           </Button>
         }
       />
+
+      {error && (
+        <InfoBanner variant="err" style={{ marginBottom: 12 }}>
+          {error}{' '}
+          <button type="button" className="ca" onClick={() => void reload()}>
+            Retry
+          </button>
+        </InfoBanner>
+      )}
 
       <SearchBar
         placeholder="Search by name, location, stage or rep…"
@@ -42,36 +74,66 @@ export default function LeadsPage() {
           </tr>
         </thead>
         <tbody>
-          {filtered.map((lead) => (
-            <tr key={lead.name}>
-              <td>
-                <strong>{lead.name}</strong>
-              </td>
-              <td>{lead.category}</td>
-              <td>{lead.location}</td>
-              <td>
-                <Badge variant={lead.stageVariant}>{lead.stage}</Badge>
-              </td>
-              <td>{lead.rep}</td>
-              <td>{lead.date}</td>
-              <td>
-                <ActionDropdown
-                  items={[
-                    { icon: 'eye', label: 'View Details', onClick: () => openModal('lead-detail') },
-                    {
-                      icon: 'undo',
-                      label: 'Assign / Reassign',
-                      onClick: () => openModal('reassign-lead'),
-                      hidden: !showCeoAdmin,
-                    },
-                    { icon: 'arrow-up', label: 'Update Stage', onClick: () => openModal('update-status') },
-                    { icon: 'clipboard', label: 'Create LPO', onClick: () => openModal('create-lpo') },
-                    { icon: 'dollar', label: 'View Invoices', onClick: () => openModal('view-invoice') },
-                  ]}
-                />
+          {loading && !data ? (
+            <tr>
+              <td colSpan={7} style={{ color: 'var(--tx3)' }}>
+                Loading leads…
               </td>
             </tr>
-          ))}
+          ) : filtered.length === 0 ? (
+            <tr>
+              <td colSpan={7} style={{ color: 'var(--tx3)' }}>
+                No leads found.
+              </td>
+            </tr>
+          ) : (
+            filtered.map((lead) => (
+              <tr key={lead._id}>
+                <td>
+                  <strong>{lead.name || '—'}</strong>
+                </td>
+                <td>{lead.type || '—'}</td>
+                <td>{locationOf(lead)}</td>
+                <td>
+                  <Badge variant={leadStatusVariant(lead.status)}>{lead.status || '—'}</Badge>
+                </td>
+                <td>{refName(lead.user)}</td>
+                <td>{formatDate(lead.creationDateTime)}</td>
+                <td>
+                  <ActionDropdown
+                    items={[
+                      {
+                        icon: 'eye',
+                        label: 'View Details',
+                        onClick: () => openModal('lead-detail', { lead }),
+                      },
+                      {
+                        icon: 'undo',
+                        label: 'Assign / Reassign',
+                        onClick: () => openModal('reassign-lead', { lead }),
+                        hidden: !showCeoAdmin,
+                      },
+                      {
+                        icon: 'arrow-up',
+                        label: 'Update Stage',
+                        onClick: () => openModal('update-status', { lead }),
+                      },
+                      {
+                        icon: 'clipboard',
+                        label: 'Create LPO',
+                        onClick: () => openModal('create-lpo', { lead }),
+                      },
+                      {
+                        icon: 'dollar',
+                        label: 'View Invoices',
+                        onClick: () => openModal('view-invoice', { lead }),
+                      },
+                    ]}
+                  />
+                </td>
+              </tr>
+            ))
+          )}
         </tbody>
       </DataTable>
     </>

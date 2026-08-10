@@ -2,12 +2,14 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon, type IconName } from '../components/ui/Icon';
+import { registerToast, unregisterToast } from '../utils/appFeedback';
 
 type ToastType = 'ok' | 'warn' | 'err';
 
@@ -81,6 +83,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     }, 2600);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    const bridge = (msg: string, type?: string) => {
+      const t =
+        type === 'success' || type === 'ok'
+          ? 'ok'
+          : type === 'error' || type === 'err'
+            ? 'err'
+            : 'warn';
+      showToast(msg, t);
+    };
+    registerToast(bridge);
+    return () => unregisterToast(bridge);
+  }, [showToast]);
 
   const clearToast = useCallback(() => setToast(null), []);
 

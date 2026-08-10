@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>SartorCRM — crm.sartor.ng</title>
+<title>Sartor CRM — crm.sartor.ng</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -16,11 +16,14 @@
   --brd:#CDD2EA;--brd2:#B8BEDE;--red:#EF4444;--rb:#FEE2E2;--rt:#991B1B;
   --amb:#F59E0B;--ab:#FEF3C7;--at:#92400E;--blu:#3B82F6;--bb:#DBEAFE;--bt:#1E40AF;
   --pur:#8B5CF6;--pb:#EDE9FE;--pt:#5B21B6;--tel:#0EA5E9;--tb:#E0F2FE;--tt:#0369A1;
-  --sw:252px;--rbh:34px;--tbh:52px;--r:9px;
+  --sw:220px;--rbh:34px;--tbh:52px;--r:9px;
   --sh:0 1px 3px rgba(0,0,80,.08),0 1px 2px rgba(0,0,80,.05);
   --shm:0 8px 24px rgba(0,0,80,.15);
+  --amber:#F59E0B;
+
 }
-html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--bg);color:var(--tx);overflow:hidden}
+html,html{height:100%}
+body{height:100%;height:-webkit-fill-available;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--bg);color:var(--tx);overflow:hidden}
 
 /* ROLE/TIER BAR */
 #rbar{height:var(--rbh);background:#00002E;padding:0 12px;display:flex;align-items:center;gap:3px;overflow-x:auto;overflow-y:hidden;flex-shrink:0}
@@ -34,9 +37,9 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 .t-sn{background:rgba(59,130,246,.3);color:#7EC8FF}.t-snp{background:rgba(139,92,246,.3);color:#C4B8FF}.t-360{background:rgba(0,179,65,.3);color:#00EE60}
 
 /* LAYOUT */
-#app{display:flex;height:calc(100vh - var(--rbh));overflow:hidden}
-.ov{display:none;position:fixed;inset:0;background:rgba(0,0,60,.6);z-index:180;backdrop-filter:blur(2px)}
-.ov.on{display:block}
+#app{display:flex;height:calc(100vh - var(--rbh));height:calc(100dvh - var(--rbh));overflow:hidden}
+.ov{display:none;position:fixed;inset:0;background:rgba(0,0,60,.6);z-index:180;backdrop-filter:blur(2px);pointer-events:none}
+.ov.on{display:block;pointer-events:auto}
 
 /* SIDEBAR */
 #sb{width:var(--sw);background:var(--N);display:flex;flex-direction:column;height:100%;overflow-y:auto;overflow-x:hidden;flex-shrink:0;z-index:200;transition:left .25s}
@@ -74,7 +77,7 @@ html,body{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background
 .tb-r{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
 .ham{display:none;flex-direction:column;gap:4px;cursor:pointer;padding:7px;background:var(--bg);border:1px solid var(--brd);border-radius:6px;flex-shrink:0}
 .ham span{width:15px;height:2px;background:var(--tx2);border-radius:2px;display:block}
-.cnt{padding:18px 20px;flex:1;overflow-y:auto;min-height:0}
+.cnt{padding:18px 20px;flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
 .cnt::-webkit-scrollbar{width:4px}.cnt::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:10px}
 
 /* PAGES */
@@ -143,7 +146,9 @@ tr.hidden{display:none}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .14s;white-space:nowrap;text-decoration:none}
 .bpri{background:var(--N);color:#fff}.bpri:hover{background:var(--N2)}
 .bgrn{background:var(--G);color:#000;font-weight:700}.bgrn:hover{background:var(--G2)}
-.bsec{background:var(--bg2);color:var(--tx2);border:1px solid var(--brd)}.bsec:hover{background:var(--bg3)}
+.bsec{background:var(--bg2);color:var(--tx2);border:1px solid var(--brd)}
+.bghost{background:transparent;color:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.3)}
+.bghost:hover{background:rgba(255,255,255,.12)}.bsec:hover{background:var(--bg3)}
 .bred{background:var(--red);color:#fff}.bred:hover{opacity:.9}
 .bamb{background:var(--amb);color:#000}.bamb:hover{opacity:.9}
 .bout{background:transparent;color:var(--N);border:1px solid var(--brd)}.bout:hover{background:var(--bg)}
@@ -160,6 +165,8 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 .inp:focus,.sel:focus,.ta:focus{border-color:var(--N);box-shadow:0 0 0 3px rgba(0,0,104,.08)}
 .sel{cursor:pointer;-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238090B8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
 .ta{resize:vertical;min-height:70px}.inp::placeholder{color:var(--tx3)}
+.fi{display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:4px}
+.fi{display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:4px}
 .fi-hint{font-size:10px;color:var(--tx3);margin-top:2px}
 .fi-hint.err{color:var(--rt)}.fi-hint.ok{color:var(--Gd)}
 .inp.err{border-color:var(--red)}.inp.ok{border-color:var(--G)}
@@ -378,56 +385,113 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 .rpt-filter label{font-size:11px;font-weight:700;color:var(--tx3);white-space:nowrap}
 
 /* RESPONSIVE */
+
+
+.plan-card{transition:outline .1s}
 @media(max-width:900px){
   #sb{position:fixed;top:var(--rbh);left:-260px;height:calc(100vh - var(--rbh));z-index:220}
   #sb.open{left:0}.ham{display:flex}.cnt{padding:14px}
-  .krow.k5,.krow.k4{grid-template-columns:repeat(2,1fr)}.krow.k3{grid-template-columns:repeat(2,1fr)}
-  .g2,.g3{grid-template-columns:1fr}.settings-grid{grid-template-columns:1fr}.inv-party{grid-template-columns:1fr}
+  .krow.k5,.krow.k4,.krow.k3{grid-template-columns:repeat(2,1fr)}
+  .g2,.g3{grid-template-columns:1fr}
+  .settings-grid{grid-template-columns:1fr}
+  .inv-party{grid-template-columns:1fr}
   .pack-batch-header,.pack-batch-row{grid-template-columns:24px 1fr 70px 90px}
+  .kgrid{grid-template-columns:repeat(2,1fr)}
+  .billing-compare-grid{grid-template-columns:1fr!important}
+  .tier-compare-grid{grid-template-columns:1fr!important}
+  .po-line{grid-template-columns:1fr 60px 80px!important;gap:6px}
+  .po-line>div:nth-child(4),.po-line>div:nth-child(5){display:none}
+
+  .plan-compare-grid{grid-template-columns:1fr!important}
 }
+
+@media(max-width:680px){
+  :root{--sw:200px}
+  #sb{position:fixed;left:-260px;top:var(--rbh);height:calc(100vh - var(--rbh))}
+  #sb.open{left:0}
+  .ham{display:flex!important}
+  .cnt{padding:12px}
+  .krow.k5,.krow.k4,.krow.k3{grid-template-columns:repeat(2,1fr)}
+  .krow.k2{grid-template-columns:1fr}
+  .g2,.g3{grid-template-columns:1fr}
+  .pghead{flex-direction:column;align-items:flex-start}
+  .tb-title{font-size:13px}
+  .kval{font-size:20px}.kval-s{font-size:16px}
+  .lpo-items-head,.lpo-item-row{grid-template-columns:1fr 60px 90px 80px 28px}
+  .pack-batch-header,.pack-batch-row{grid-template-columns:24px 1fr 70px 70px 80px}
+  .modal{max-width:100%!important;margin:0;border-radius:12px 12px 0 0;position:fixed;bottom:0;left:0;right:0}
+  .modal-bg{align-items:flex-end;padding:0}
+  .settings-grid{grid-template-columns:1fr}
+  .settings-nav{display:flex;overflow-x:auto;border-radius:var(--r) var(--r) 0 0}
+  .settings-nav-item{padding:10px 14px;white-space:nowrap;border-bottom:none;border-right:1px solid var(--bg2)}
+  .sticker-order-card{flex-direction:column;align-items:flex-start}
+  .sticker-order-card-stats{grid-template-columns:repeat(2,1fr)}
+  .credit-reserve-bar{flex-direction:column;gap:10px}
+  .credit-reserve-div{width:100%;height:1px}
+  #rbar{gap:2px}
+  .rbtn{padding:2px 6px;font-size:8px}
+  .kgrid{grid-template-columns:repeat(2,1fr)}
+  .w50{width:100%!important;flex:none!important}
+  .fg.w50{width:100%!important}
+  .frow{flex-direction:column}
+  .fr2{flex-direction:column}
+  .po-line{grid-template-columns:1fr!important}
+  .po-line>div:nth-child(3),.po-line>div:nth-child(4),.po-line>div:nth-child(5){display:none}
+  .billing-compare-grid{grid-template-columns:1fr!important}
+  .tier-compare-grid{grid-template-columns:1fr!important}
+  .sartor360-row{flex-direction:column}
+  .activate-form-block{padding:12px}
+
+  .plan-compare-grid{grid-template-columns:1fr!important}
+}
+
 @media(max-width:520px){
-  .krow.k5,.krow.k4,.krow.k3,.krow.k2{grid-template-columns:1fr 1fr}.tb-title{font-size:13px}
-  .lpo-items-head{display:none}.lpo-item-row{grid-template-columns:1fr 60px;gap:6px}
-  .lpo-item-row .lpo-unit,.lpo-item-row .lpo-sub{display:none}.modal-bg{padding:6px}
-  .photo-grid{grid-template-columns:repeat(3,1fr)}.pack-batch-header{display:none}
+  .krow.k5,.krow.k4,.krow.k3,.krow.k2{grid-template-columns:1fr 1fr}
+  .tb-title{font-size:13px}
+  .lpo-items-head{display:none}
+  .lpo-item-row{grid-template-columns:1fr 60px;gap:6px}
+  .lpo-item-row .lpo-unit,.lpo-item-row .lpo-sub{display:none}
+  .modal-bg{padding:6px}
+  .photo-grid{grid-template-columns:repeat(3,1fr)}
+  .pack-batch-header{display:none}
   .pack-batch-row{grid-template-columns:24px 1fr 90px}
+  .kgrid{grid-template-columns:1fr 1fr}
+  .sticker-order-card-stats{grid-template-columns:repeat(2,1fr)}
+  .pghead button{font-size:12px}
+  .mh{padding:12px 14px}
+  .mb{padding:12px 14px}
+  .mf{padding:10px 14px;flex-wrap:wrap;gap:6px}
+  .mf .btn{flex:1;justify-content:center;min-width:80px}
+  table{font-size:11px}
+  table th,table td{padding:5px 7px}
+  .card{padding:12px 13px}
+  .kc{padding:11px 12px}
+  .btn{padding:6px 10px;font-size:12px}
+  .bsm{padding:4px 8px;font-size:11px}
 }
 
-/* QR confirmation */
-.qr-step-btn{display:flex;align-items:center;gap:8px;padding:12px 16px;border-radius:9px;border:1px solid var(--brd);background:#fff;cursor:pointer;transition:all .14s;width:100%;font-family:inherit;font-size:13px;font-weight:600;color:var(--tx)}
-.qr-step-btn:hover{border-color:var(--N);background:var(--bg)}
-.qr-step-btn.selected{border-color:var(--G);background:var(--Gb);color:var(--Gd)}
+@media(max-width:760px){
+  .tw:has(table.resp){ overflow-x:visible; max-width:100%; }
+  table.resp{ display:block; width:100%; min-width:0; }
+  table.resp thead{ display:none; }
+  table.resp tbody{ display:block; width:100%; }
+  table.resp tr{ display:block; width:100%; box-sizing:border-box; margin-bottom:10px; border:1px solid var(--brd); border-radius:9px; padding:8px 10px; background:#fff; }
+  table.resp td{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:5px 0; border:none!important; text-align:right; box-sizing:border-box; width:100%; }
+  table.resp td::before{ content:attr(data-label); font-weight:600; color:var(--tx3); font-size:11px; text-transform:uppercase; text-align:left; flex-shrink:0; white-space:nowrap; }
+  table.resp td:last-child{ justify-content:flex-start; padding-top:8px; }
+  table.resp td:last-child::before{ display:none; }
+}
 
-
-/* ── LOCATION / MAP ─────────────────────────────────────── */
-.location-card{background:var(--bg);border:1px solid var(--brd);border-radius:9px;padding:12px 14px;margin-top:10px}
-.location-card-inner{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.location-icon{font-size:18px;flex-shrink:0;margin-top:2px}
-.location-info{flex:1;min-width:0}
-.location-lbl{font-size:10px;font-weight:800;color:var(--G);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.location-coords{font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--N)}
-.location-addr{font-size:12px;color:var(--tx3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:260px}
-.location-acts{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center}
-.loc-map-container{width:100%;height:260px;border-radius:8px;overflow:hidden;border:1px solid var(--brd);margin-bottom:10px;z-index:0;position:relative}
-.loc-map-mini{width:100%;height:130px;border-radius:7px;overflow:hidden;border:1px solid var(--brd);z-index:0;position:relative;margin-top:8px}
-.loc-pin-btn{background:var(--G);color:#000;font-weight:700;border:none;padding:8px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:background .14s}
-.loc-pin-btn:hover{background:var(--G2)}
-.loc-no-pin{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border-radius:7px;font-size:12px;color:var(--tx3);border:1px dashed var(--brd2)}
-.loc-gps-btn{background:var(--N);color:#fff;border:none;padding:8px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-family:inherit;display:inline-flex;align-items:center;gap:6px;font-weight:600;transition:background .14s}
-.loc-gps-btn:hover{background:var(--N2)}
-.loc-search-inp{flex:1;padding:8px 11px;border:1px solid var(--brd);border-radius:7px;font-size:13px;font-family:inherit;outline:none;min-width:0}
-.loc-search-inp:focus{border-color:var(--N)}
-.nav-btn{background:var(--G);color:#000;font-weight:700;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:11px;font-family:inherit;display:inline-flex;align-items:center;gap:5px;transition:background .14s;white-space:nowrap}
-.nav-btn:hover{background:var(--G2)}
-.nav-btn-sml{padding:4px 8px;font-size:10px}
-/* Override Leaflet z-index so it doesn't cover modals */
-.leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,
-.leaflet-tile-container,.leaflet-pane>svg,.leaflet-pane>canvas,
-.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{z-index:1!important}
-.leaflet-top,.leaflet-bottom{z-index:2!important}
-.leaflet-control{z-index:2!important}
-.leaflet-popup-pane,.leaflet-overlay-pane{z-index:3!important}
-
+@media(max-width:640px){
+  .plan-compare-grid{ grid-template-columns:1fr!important; }
+  .billing-compare-grid{ grid-template-columns:1fr!important; }
+  #modal-change-plan .modal{ max-width:100%!important; }
+  /* Make modals flex-column so the body scrolls and header/footer stay put */
+  .modal-bg .modal{ max-height:92vh; display:flex; flex-direction:column; overflow:hidden; }
+  .modal-bg .modal .mh{ flex-shrink:0; }
+  .modal-bg .modal .mf{ flex-shrink:0; position:sticky; bottom:0; background:#fff; border-top:1px solid var(--brd); }
+  .modal-bg .modal .mb{ flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch; min-height:0; }
+}
 </style>
 </head>
 <body>
@@ -443,8 +507,8 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
   <button class="rbtn" onclick="switchRole('merch')">Merchandiser</button>
   <span class="sep">|</span>
   <span class="lbl">Tier:</span>
-  <button class="rbtn" onclick="switchTier('sn')">Sales Nav</button>
-  <button class="rbtn" onclick="switchTier('snp')">Sales Nav+</button>
+  <button class="rbtn" onclick="switchTier('sn')">CRM Field</button>
+  <button class="rbtn" onclick="switchTier('snp')">Sartor CRM Depot</button>
   <button class="rbtn on" onclick="switchTier('360')">CRM 360</button>
   <span id="tier-badge" class="tier-badge t-360">CRM 360</span>
 </div>
@@ -453,7 +517,7 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 <div class="ov" id="ov" onclick="closeSB();closeAllModals()"></div>
 
 <nav id="sb">
-  <div class="sb-logo"><div class="sb-mark">S</div><div><div class="sb-nm">SartorCRM</div><div class="sb-dm">crm.sartor.ng</div></div></div>
+  <div class="sb-logo"><div class="sb-mark">S</div><div><div class="sb-nm">Sartor CRM</div><div class="sb-dm">crm.sartor.ng</div></div></div>
   <div id="sb-nav"></div>
   <div class="sbfoot">
     <div class="sb-user">
@@ -663,18 +727,21 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
       <div class="irow"><span class="ilbl">Address</span><span class="ival">Plot 12, Garki Industrial</span></div>
       <div class="irow"><span class="ilbl">WH Manager</span><span class="ival">Musa Abdullahi</span></div>
       <div class="irow"><span class="ilbl">SKUs</span><span class="ival">4 products · 3,925 units</span></div>
-      <div style="margin-top:12px;display:flex;gap:8px"><button class="btn bout bsm">View Inventory</button><button class="btn bsec bsm">Manage Staff</button></div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn bout bsm" onclick="openM('modal-wh-inventory')">View Inventory</button>
+        <button class="btn bsec bsm" onclick="openM('modal-wh-staff')">Manage Staff</button>
+      </div>
     </div>
     <div class="card cp"><div class="ch"><span class="ct">Lagos Hub</span><span class="badge ba">Pending</span></div>
       <div class="irow"><span class="ilbl">Address</span><span class="ival">14 Apapa Road, Lagos</span></div>
-      <div style="margin-top:12px"><button class="btn bgrn bsm">Assign Staff</button></div>
+      <div style="margin-top:12px"><button class="btn bgrn bsm" onclick="openM('modal-wh-staff')">Assign Staff</button></div>
     </div>
   </div>
 </div>
 
 <!-- TEAM -->
 <div class="page" id="page-team">
-  <div class="pghead"><div><div class="pgtitle">👤 Team</div></div><button class="btn bgrn bsm" onclick="openM('modal-invite-user')">+ Invite User</button></div>
+  <div class="pghead"><div><div class="pgtitle">👤 Team</div></div><button class="btn bgrn bsm" onclick="openInviteUser()">+ Invite User</button></div>
   <div class="card"><div class="tw"><table>
     <thead><tr><th>Name</th><th>Role</th><th>Commission</th><th>Status</th><th>Actions</th></tr></thead>
     <tbody>
@@ -927,16 +994,60 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 </div>
 
 <div class="page" id="page-sartor360">
-  <div class="pghead"><div><div class="pgtitle">🔗 SartorChain + DORA AI</div></div></div>
-  <div class="info-banner succ"><span class="ico">✦</span><div><strong>CRM 360 Active.</strong> Includes SartorChain authentication, DORA AI visual fingerprinting, and Gift Engine.</div></div>
-  <div class="g2"><div class="card cp"><div class="ch"><span class="ct">SartorChain Platform</span></div><p style="font-size:13px;color:var(--tx3);margin-bottom:14px;line-height:1.6">Authentication campaigns, gift engine, supply chain tracking.</p><a href="https://dorascan.ai" target="_blank" class="btn bpri bsm">Open SartorChain →</a></div>
-  <div class="card cp"><div class="ch"><span class="ct">DORA AI Authentication</span></div><p style="font-size:13px;color:var(--tx3);margin-bottom:14px;line-height:1.6">Consumer-facing product verification and scan analytics.</p><a href="https://verify.dorascan.ai" target="_blank" class="btn bsec bsm">Open DORA Scan →</a></div></div>
+  <div class="pghead"><div><div class="pgtitle">🔗 Sartor-Chain &amp; DORA AI</div></div></div>
+  <div class="info-banner succ"><span class="ico">✦</span><div><strong>Sartor CRM 360 Active.</strong> Your subscription includes full Sartor-Chain authentication, DORA AI visual fingerprinting, Gift Engine, and direct access to the Sartor-Chain &amp; DORA AI Client Admin portal — your products and batches are pre-populated there based on your tier, credits and payment status.</div></div>
+
+  <div style="background:var(--N);border-radius:12px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;gap:20px;flex-wrap:wrap" class="sartor360-row">
+    <div style="flex:1;min-width:200px">
+      <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.7px;margin-bottom:4px">Advanced Controls</div>
+      <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:6px;font-family:'Fraunces',serif">Sartor-Chain &amp; DORA AI Client Admin</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);line-height:1.6">Full batch management, DORA AI dashboard, investigation queue, gift campaigns, and authentication analytics. Products and batches from this account are automatically pre-populated.</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0">
+      <a href="https://admin.dorascan.ai" target="_blank" class="btn bgrn" style="font-size:13px;padding:10px 20px">Open Sartor-Chain &amp; DORA Admin ↗</a>
+      <a href="https://verify.dorascan.ai" target="_blank" class="btn bout bsm" style="color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.2);text-align:center">Preview Consumer Verify Page ↗</a>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card cp">
+      <div class="ch"><span class="ct">Authentication Credits</span></div>
+      <div class="krow k3" style="margin-bottom:0">
+        <div class="kc kg"><div class="klbl">Batch Calibration</div><div class="kval">18</div><div style="font-size:10px;color:var(--tx3);margin-top:3px">credits remaining</div></div>
+        <div class="kc kb"><div class="klbl">PIN Authentication</div><div class="kval">8,200</div><div style="font-size:10px;color:var(--tx3);margin-top:3px">credits remaining</div></div>
+        <div class="kc ka"><div class="klbl">SMS Notifications</div><div class="kval">5,876</div><div style="font-size:10px;color:var(--at);margin-top:3px">41% — consider topping up</div></div>
+      </div>
+      <div style="margin-top:12px"><button class="btn bgrn bsm" onclick="openM('modal-payment-gateway')">+ Buy Credits</button></div>
+    </div>
+    <div class="card cp">
+      <div class="ch"><span class="ct">Verification Domain</span></div>
+      <div style="padding:10px 13px;background:var(--Gb);border-radius:8px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:700;color:var(--Gd);margin-bottom:2px">✓ Active: verify.dorascan.ai (Default)</div>
+        <div style="font-size:11px;color:var(--Gd)">Included with all accounts · Consumer QR scans route here</div>
+      </div>
+      <div style="font-size:12px;color:var(--tx3);margin-bottom:10px;line-height:1.5">Upgrade to a branded domain for white-label verification. Growth subdomain (₦100,000 one-time) or Enterprise CNAME (₦150,000 setup + ₦200,000/yr).</div>
+      <button class="btn bout bsm" onclick="openM('modal-domain-upgrade')">Upgrade Domain</button>
+    </div>
+  </div>
 </div>
+
+<!-- STICKER ORDERS (CEO / WH / Inv — CRM 360 only) -->
+<div class="page" id="page-sticker-orders">
+      <div style="max-width:560px;margin:40px auto;text-align:center;padding:32px;background:var(--bg);border:1px solid var(--brd);border-radius:12px">
+        <div style="font-size:32px;margin-bottom:12px">&#128279;</div>
+        <h3 style="font-family:'Fraunces',serif;font-size:18px;color:var(--N);margin-bottom:8px">Sticker Orders have moved</h3>
+        <p style="font-size:13px;color:var(--tx3);line-height:1.6;margin-bottom:16px">Security sticker ordering, tracking, and activation now live in the <strong>Sartor-Chain &amp; DORA AI Client Admin</strong> &mdash; alongside your products, batches, PINs, and authentication credits. This keeps all authentication operations in one place.</p>
+        <a href="#" onclick="showToast('Opening Sartor-Chain &amp; DORA AI Client Admin...','ok');return false;" class="btn bpri">Go to Sartor-Chain &amp; DORA AI Admin &rarr;</a>
+      </div>
+    </div>
 
 <!-- PRODUCTS (with actions dropdown) -->
 <div class="page" id="page-products">
   <div class="pghead"><div><div class="pgtitle">📦 Product Catalog</div></div>
-    <button class="btn bgrn bsm" id="btn-add-product" style="display:none" onclick="openM('modal-add-product')">+ Add Product</button></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn bsec bsm" onclick="openM('modal-grn')">📥 Receive Stock</button>
+      <button class="btn bgrn bsm" id="btn-add-product" style="display:none" onclick="openM('modal-add-product')">+ Add Product</button>
+    </div></div>
   <div class="search-bar"><span class="si">🔍</span><input type="text" placeholder="Search by SKU, name, brand, manufacturer or category…" oninput="filterTable('prod-table',this.value,[0,1,2,3])"></div>
   <div class="krow k3 mb"><div class="kc kg"><div class="klbl">Total SKUs</div><div class="kval">4</div></div><div class="kc ka"><div class="klbl">Low Stock</div><div class="kval">2</div></div><div class="kc kr"><div class="klbl">Critical / Expiring</div><div class="kval">1</div></div></div>
   <div class="card"><div class="tw"><table id="prod-table">
@@ -1153,9 +1264,15 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
       <div id="sp-users" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <h3 style="font-size:15px;font-weight:700;color:var(--N);font-family:'Fraunces',serif">User &amp; Role Management</h3>
-          <button class="btn bgrn bsm" onclick="openM('modal-invite-user')">+ Invite User</button>
+          <button class="btn bgrn bsm" onclick="openInviteUser()">+ Invite User</button>
         </div>
         <div class="info-banner info"><span class="ico">&#x2139;</span><div>As CEO, you can invite users, assign roles, set commission rates, deactivate accounts, and assign staff to warehouses. Each user occupies one seat on your billing plan.</div></div>
+        <div id="seat-usage-banner" style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;background:var(--bg);border:1px solid var(--brd);border-radius:9px;padding:12px 16px;margin-bottom:14px">
+          <div><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Plan</div><div id="seat-plan-name" style="font-size:14px;font-weight:700;color:var(--N)">Sartor CRM 360</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Seats Used</div><div id="seat-used" style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--N)">8</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Seat Allowance</div><div id="seat-allow" style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--N)">Unlimited</div></div>
+          <div id="seat-warn" style="display:none;margin-left:auto;font-size:11px;color:var(--at);font-weight:600">&#9888; Seat limit reached &mdash; upgrade tier to add staff</div>
+        </div>
         <div class="tw"><table style="font-size:13px">
           <thead><tr><th>Name</th><th>Role</th><th>Warehouse</th><th>Commission</th><th>Seats</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
@@ -1172,7 +1289,7 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
         </table></div>
         <div style="margin-top:12px;padding:10px 14px;background:var(--bg);border-radius:7px;display:flex;align-items:center;justify-content:space-between">
           <span style="font-size:12px;color:var(--tx3)">Active Seats: <strong style="color:var(--N)">9 / 9</strong> &mdash; CRM 360 plan</span>
-          <button class="btn bpri bsm" onclick="(function(){var b=document.querySelector('[data-panel="sp-billing"]');if(b)b.click();})()">Manage Seats &amp; Billing &#x2192;</button>
+          <button class="btn bpri bsm" onclick="goToSettings('sp-billing')">Manage Seats &amp; Billing &#x2192;</button>
         </div>
       </div>
 
@@ -1230,90 +1347,76 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 
       <!-- SUBSCRIPTION & BILLING -->
       <div id="sp-billing" style="display:none">
-        <h3 style="font-size:15px;font-weight:700;color:var(--N);font-family:'Fraunces',serif;margin-bottom:4px">Subscription &amp; Billing</h3>
-        <p style="font-size:12px;color:var(--tx3);margin-bottom:16px">SartorCRM charges per seat per tier. Every active user account is one seat. Deactivating a user frees the seat immediately.</p>
+        <div style="margin-bottom:16px">
+          <h3 style="font-size:15px;font-weight:700;color:var(--N);font-family:'Fraunces',serif;margin-bottom:4px">Subscription &amp; Billing</h3>
+          <p style="font-size:12px;color:var(--tx3)">Your Sartor Limited subscription. Upgrade your tier or switch billing cycle at any time &mdash; changes take effect at your next renewal.</p>
+        </div>
 
-        <!-- CURRENT PLAN -->
+        <!-- CURRENT PLAN CARD (dynamic) -->
         <div style="background:linear-gradient(135deg,var(--N),#0000A8);border-radius:10px;padding:18px 20px;color:#fff;margin-bottom:16px">
-          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Current Plan &middot; <span id="bl-cycle-label">Monthly Billing</span></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px">
             <div>
-              <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Current Plan</div>
-              <div style="font-family:'Fraunces',serif;font-size:22px;font-weight:700">CRM 360</div>
-              <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px">Full platform &mdash; SartorChain, DORA AI, Field Intel, GRN, Reconciliation</div>
+              <div id="bl-plan-name" style="font-family:'Fraunces',serif;font-size:22px;font-weight:700">Sartor CRM 360</div>
+              <div id="bl-plan-tag" style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px">Full platform</div>
             </div>
-            <div style="text-align:right">
-              <div style="font-size:10px;font-weight:800;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px">Per Seat / Month</div>
-              <div style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700;color:var(--G)">&#x20A6;25,000</div>
+            <div style="text-align:right;flex-shrink:0">
+              <div id="bl-amount-lbl" style="font-size:10px;color:rgba(255,255,255,.5);margin-bottom:2px">Monthly Total</div>
+              <div id="bl-amount" style="font-family:'DM Mono',monospace;font-size:24px;font-weight:700">&#8358;750,000/mo</div>
+              <div id="bl-amount-sub" style="font-size:10px;color:rgba(255,255,255,.4);margin-top:2px">No discount on monthly</div>
             </div>
           </div>
-          <div style="margin-top:16px;background:rgba(255,255,255,.08);border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
-            <div style="display:flex;gap:24px">
-              <div><div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:var(--G)">9</div><div style="font-size:11px;color:rgba(255,255,255,.5)">Active Seats</div></div>
-              <div><div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700">&#x20A6;225,000</div><div style="font-size:11px;color:rgba(255,255,255,.5)">Monthly Total</div></div>
-              <div><div style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:#7EC8FF">19</div><div style="font-size:11px;color:rgba(255,255,255,.5)">Days to Renewal</div></div>
-            </div>
-            <div style="display:flex;gap:8px">
-              <button class="btn bgrn bsm" onclick="showToast('Annual billing saves &#x20A6;540,000 per year. Contact billing@sartor.ng to switch.','ok')">Switch to Annual (Save 20%)</button>
-              <button class="btn bout bsm" style="color:rgba(255,255,255,.7);border-color:rgba(255,255,255,.2)" onclick="showToast('Contact billing@sartor.ng to change plans.','ok')">Change Plan</button>
-            </div>
+          <div id="bl-breakdown" style="background:rgba(255,255,255,.08);border-radius:8px;padding:12px 14px;margin-bottom:10px"></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn bgrn bsm" id="bl-cycle-btn" onclick="toggleBillingCycle()">Switch to Annual (Save 20%)</button>
+            <button class="btn bghost bsm" onclick="openChangePlan()">Upgrade / Change Tier</button>
           </div>
         </div>
 
-        <!-- TIER COMPARISON -->
-        <div class="sdiv-label">Plan Comparison &mdash; Per Seat / Month</div>
-        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
-          <div style="border:1px solid var(--brd);border-radius:9px;padding:14px;background:var(--bg)">
-            <div style="font-family:'Fraunces',serif;font-size:14px;font-weight:700;color:var(--tx2);margin-bottom:4px">Sales Navigator</div>
-            <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:var(--N);margin-bottom:8px">&#x20A6;5,000<span style="font-size:11px;color:var(--tx3);font-family:inherit;font-weight:400">/seat/mo</span></div>
-            <div style="font-size:11px;color:var(--tx3);line-height:1.8">Leads, Customers, LPOs<br>Basic Sales Reporting<br>My Commissions<br><span style="color:var(--rt)">No Invoices, No WH, No DORA</span></div>
+        <!-- DAYS & RENEWAL -->
+        <div style="background:var(--bg);border:1px solid var(--brd);border-radius:9px;padding:13px 16px;margin-bottom:18px;display:flex;gap:20px;flex-wrap:wrap;align-items:center">
+          <div><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Next Renewal</div><div style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--N)">19 days</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Amount Due</div><div id="bl-renew-amount" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--N)">&#8358;750,000</div></div>
+          <div><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:3px">Billing Cycle</div><div id="bl-renew-cycle" style="font-size:14px;font-weight:600;color:var(--N)">Monthly</div></div>
+        </div>
+
+        <!-- INVOICES DUE TO SARTOR LIMITED -->
+        <div class="sdiv-label">Invoices &mdash; Payable to Sartor Limited</div>
+        <p style="font-size:11px;color:var(--tx3);margin-bottom:10px">Your subscription invoices from Sartor Limited. Separate from the invoices you issue to your own customers.</p>
+        <div class="tw" style="margin-bottom:18px"><table class="resp" style="font-size:12px"><thead><tr><th>Invoice</th><th>Date</th><th>Description</th><th>Amount</th><th>Due In</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="bl-sartor-inv-body"></tbody></table></div>
+
+        <!-- PLAN COMPARISON -->
+        <div class="sdiv-label">Plan Comparison &amp; Upgrade Path</div>
+        <div class="billing-compare-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+          <div style="border:1px solid var(--brd);border-radius:9px;padding:14px;background:var(--bg);position:relative">
+            <div id="bl-current-sn" style="display:none;position:absolute;top:-10px;right:12px;background:var(--N);color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:10px;text-transform:uppercase">Current</div>
+            <div style="font-family:'Fraunces',serif;font-size:13px;font-weight:700;color:var(--tx2);margin-bottom:2px">Sartor CRM Field</div>
+            <div style="font-size:10px;font-weight:600;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:7px">T1 &middot; Per revenue seat</div>
+            <div style="font-family:'DM Mono',monospace;font-size:17px;font-weight:700;color:var(--N)">&#8358;15,000<span style="font-size:10px;font-weight:400;color:var(--tx3)">/seat/mo</span></div>
+            <div style="font-size:10px;color:var(--tx3);margin-bottom:8px">&#8358;12,000/seat annual &middot; Min 3 seats</div>
+            <div style="font-size:11px;color:var(--tx3);line-height:1.8">Pipeline &amp; Leads<br>Customer Management<br>LPOs &amp; Invoices<br><span style="color:var(--rt)">No WH / Drivers / GRN<br>No Sartor-Chain / DORA AI</span></div>
           </div>
-          <div style="border:1px solid var(--pur);border-radius:9px;padding:14px;background:var(--pb)">
-            <div style="font-family:'Fraunces',serif;font-size:14px;font-weight:700;color:var(--pt);margin-bottom:4px">Sales Nav Plus</div>
-            <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:var(--pt);margin-bottom:8px">&#x20A6;12,000<span style="font-size:11px;color:var(--pt);font-family:inherit;font-weight:400;opacity:.7">/seat/mo</span></div>
-            <div style="font-size:11px;color:var(--pt);opacity:.8;line-height:1.8">Everything in SN +<br>Invoices &amp; Collections<br>Warehouses &amp; Drivers<br>Product Catalog<br><span style="opacity:.6">No SartorChain / DORA</span></div>
+          <div style="border:1px solid var(--pur);border-radius:9px;padding:14px;background:var(--pb);position:relative">
+            <div id="bl-current-snp" style="display:none;position:absolute;top:-10px;right:12px;background:var(--pur);color:#fff;font-size:9px;font-weight:800;padding:2px 8px;border-radius:10px;text-transform:uppercase">Current</div>
+            <div style="font-family:'Fraunces',serif;font-size:13px;font-weight:700;color:var(--pt);margin-bottom:2px">Sartor CRM Depot</div>
+            <div style="font-size:10px;font-weight:600;color:var(--pt);opacity:.7;text-transform:uppercase;letter-spacing:.3px;margin-bottom:7px">T2 &middot; Revenue + Operational seats</div>
+            <div style="font-family:'DM Mono',monospace;font-size:15px;font-weight:700;color:var(--pt)">&#8358;22,000<span style="font-size:10px;font-weight:400;opacity:.7">/revenue seat/mo</span></div>
+            <div style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--pt)">&#8358;8,000<span style="font-size:10px;font-weight:400;opacity:.7">/operational seat/mo</span></div>
+            <div style="font-size:10px;color:var(--pt);opacity:.7;margin-bottom:8px">Annual: &#8358;17,600 / &#8358;6,400 &middot; Min 5 seats</div>
+            <div style="font-size:11px;color:var(--pt);opacity:.85;line-height:1.8">Everything in Field +<br>Warehouses &amp; Drivers<br>GRN &middot; Supplier Mgmt<br><span style="opacity:.6">No Sartor-Chain / DORA AI</span></div>
           </div>
           <div style="border:2px solid var(--G);border-radius:9px;padding:14px;background:#E6FAF0;position:relative">
-            <div style="position:absolute;top:-10px;right:12px;background:var(--G);color:#000;font-size:9px;font-weight:800;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.5px">Current Plan</div>
-            <div style="font-family:'Fraunces',serif;font-size:14px;font-weight:700;color:var(--Gd);margin-bottom:4px">CRM 360</div>
-            <div style="font-family:'DM Mono',monospace;font-size:20px;font-weight:700;color:var(--Gd);margin-bottom:8px">&#x20A6;25,000<span style="font-size:11px;font-family:inherit;font-weight:400;opacity:.7">/seat/mo</span></div>
-            <div style="font-size:11px;color:var(--Gd);line-height:1.8">Everything in SNP +<br>SartorChain + DORA AI<br>GRN &amp; Stock Reconciliation<br>Field Intelligence<br>Supplier Management<br>VAT &amp; P&amp;L Reports</div>
+            <div id="bl-current-360" style="display:none;position:absolute;top:-10px;right:12px;background:var(--G);color:#000;font-size:9px;font-weight:800;padding:2px 8px;border-radius:10px;text-transform:uppercase">Current</div>
+            <div style="font-family:'Fraunces',serif;font-size:13px;font-weight:700;color:var(--Gd);margin-bottom:2px">Sartor CRM 360</div>
+            <div style="font-size:10px;font-weight:600;color:var(--Gd);text-transform:uppercase;letter-spacing:.3px;margin-bottom:7px">T3 &middot; Flat fee &middot; Unlimited users</div>
+            <div style="font-size:10px;font-weight:700;color:var(--Gd);margin-bottom:2px">Monthly (no discount):</div>
+            <div style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--Gd)">&#8358;375,000 + &#8358;375,000 = &#8358;750,000/mo</div>
+            <div style="font-size:10px;font-weight:700;color:var(--Gd);margin-top:4px;margin-bottom:2px">Annual lump sum (20% off):</div>
+            <div style="font-family:'DM Mono',monospace;font-size:12px;font-weight:700;color:var(--Gd)">&#8358;3,600,000 + &#8358;3,600,000 = &#8358;7,200,000</div>
+            <div style="font-size:11px;color:var(--Gd);margin-top:8px;line-height:1.8">Everything in Depot +<br>Sartor-Chain + DORA AI<br>Stock Reconciliation<br>Field Intelligence<br><strong>No per-seat charge ever</strong></div>
           </div>
-        </div>
-
-        <!-- SEAT MANAGEMENT -->
-        <div class="sdiv-label">Active Seats</div>
-        <div class="tw"><table style="font-size:12px">
-          <thead><tr><th>User</th><th>Role</th><th>Seat Added</th><th>Cost/Month</th><th>Action</th></tr></thead>
-          <tbody>
-            <tr><td>Nwachukwu Confidence</td><td>CEO</td><td>1 Jan 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td style="color:var(--tx3);font-size:11px">Owner seat</td></tr>
-            <tr><td>Abubakar Idah</td><td>Admin</td><td>15 Jan 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed. Billing adjusted from next cycle.','warn')">Remove Seat</button></td></tr>
-            <tr><td>Emmanuel Batimehin</td><td>Sales Rep</td><td>15 Jan 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed. Billing adjusted from next cycle.','warn')">Remove Seat</button></td></tr>
-            <tr><td>Samuel Okon</td><td>Sales Rep</td><td>1 Feb 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed. Billing adjusted from next cycle.','warn')">Remove Seat</button></td></tr>
-            <tr><td>Okeke David</td><td>Finance Manager</td><td>1 Feb 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed. Billing adjusted from next cycle.','warn')">Remove Seat</button></td></tr>
-            <tr><td>Amaka Obi</td><td>Inventory Officer</td><td>15 Feb 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed.','warn')">Remove Seat</button></td></tr>
-            <tr><td>Musa Abdullahi</td><td>WH Manager</td><td>15 Feb 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed.','warn')">Remove Seat</button></td></tr>
-            <tr><td>Chidi Okeke</td><td>Driver</td><td>1 Mar 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed.','warn')">Remove Seat</button></td></tr>
-            <tr><td>Einstein Dare</td><td>Merchandiser</td><td>1 Mar 2026</td><td style="font-family:'DM Mono',monospace">&#x20A6;25,000</td><td><button class="btn bred bxs" onclick="showToast('Seat removed.','warn')">Remove Seat</button></td></tr>
-            <tr style="background:var(--Gb)"><td colspan="3" style="font-weight:700;color:var(--Gd)">Monthly Total</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--Gd)">&#x20A6;225,000</td><td><button class="btn bgrn bsm" onclick="openM('modal-invite-user')">+ Add Seat</button></td></tr>
-          </tbody>
-        </table></div>
-
-        <!-- BILLING HISTORY -->
-        <div class="sdiv-label" style="margin-top:20px">Billing History</div>
-        <div class="tw"><table style="font-size:12px">
-          <thead><tr><th>Period</th><th>Plan</th><th>Seats</th><th>Amount</th><th>Status</th><th>Receipt</th></tr></thead>
-          <tbody>
-            <tr><td>May 2026</td><td>CRM 360</td><td style="font-family:'DM Mono',monospace">9</td><td style="font-family:'DM Mono',monospace">&#x20A6;225,000</td><td><span class="badge ba">Due 31 May</span></td><td><button class="btn bout bxs" onclick="showToast('Downloading invoice&#x2026;','ok')">Invoice</button></td></tr>
-            <tr><td>Apr 2026</td><td>CRM 360</td><td style="font-family:'DM Mono',monospace">8</td><td style="font-family:'DM Mono',monospace">&#x20A6;200,000</td><td><span class="badge bg2">Paid</span></td><td><button class="btn bout bxs" onclick="showToast('Downloading receipt&#x2026;','ok')">Receipt</button></td></tr>
-            <tr><td>Mar 2026</td><td>CRM 360</td><td style="font-family:'DM Mono',monospace">7</td><td style="font-family:'DM Mono',monospace">&#x20A6;175,000</td><td><span class="badge bg2">Paid</span></td><td><button class="btn bout bxs" onclick="showToast('Downloading receipt&#x2026;','ok')">Receipt</button></td></tr>
-          </tbody>
-        </table></div>
-        <div style="margin-top:12px;padding:10px 14px;background:var(--bg);border-radius:7px;font-size:12px;color:var(--tx3)">
-          Questions about billing? Contact <a href="mailto:billing@sartor.ng" style="color:var(--N);font-weight:600">billing@sartor.ng</a>
-        </div>
-      </div>
-
-    </div><!-- /settings-panel -->
+        </div></div></div><!-- /settings-panel -->
   </div><!-- /settings-grid -->
 </div>
 
@@ -1456,7 +1559,10 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 
 <div class="page" id="page-suppliers">
   <div class="pghead"><div><div class="pgtitle">&#x1F3E2; Supplier Management</div><div class="pgsub">Track suppliers, purchase history, and amounts owed.</div></div>
-    <button class="btn bgrn bsm" onclick="openM('modal-add-supplier')">+ Add Supplier</button></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bsec bsm" onclick="openM('modal-raise-po')">&#x1F4CB; Raise PO</button>
+      <button class="btn bgrn bsm" onclick="openM('modal-add-supplier')">+ Add Supplier</button>
+    </div></div>
   <div class="krow k3 mb">
     <div class="kc kr"><div class="klbl">Total Owed to Suppliers</div><div class="kval kval-s">&#x20A6;1.2M</div><div class="ktrend nu">3 suppliers</div></div>
     <div class="kc ka"><div class="klbl">Overdue (30+ days)</div><div class="kval kval-s">&#x20A6;480K</div></div>
@@ -1552,7 +1658,7 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 <!-- LEAD DETAIL -->
 <div class="modal-bg" id="modal-lead-detail"><div class="modal">
   <div class="mh"><div><div class="mh-t">FreshMart NG</div><div class="mh-sub">Lead · FMCG-Retail · Contact Made</div></div><button class="mx" onclick="closeM('modal-lead-detail')">×</button></div>
-  <div class="mb">
+  <div class="mb"><div style="display:none"></div>
     <div class="irow"><span class="ilbl">Business</span><span class="ival">FreshMart NG</span></div>
     <div class="irow"><span class="ilbl">Address</span><span class="ival">31 Garki Market Rd, Garki, FCT — Abuja</span></div>
     <div class="sdiv-label" style="margin-top:0">Contacts</div>
@@ -1593,7 +1699,7 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
     <button class="btn bout" onclick="closeM('modal-lead-detail');openM('modal-update-status')">Update Stage</button>
     <button class="btn bpri" onclick="closeM('modal-lead-detail');openM('modal-create-lpo')">Create LPO</button>
   </div>
-</div></div>
+</div>
 
 <!-- REASSIGN LEAD -->
 <div class="modal-bg" id="modal-reassign-lead"><div class="modal narrow">
@@ -1738,7 +1844,7 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
           </div>
           <div style="font-size:11px;color:var(--tx3)">QR code sent to customer via WhatsApp &amp; Email on dispatch · 8 May 2026 09:14</div>
           <div id="sartor-chain-sync-2" style="margin-top:6px;font-size:11px;color:var(--tx3);display:none">
-            SartorChain sync: <span style="color:var(--Gd);font-weight:700">Pending</span>
+            Sartor-Chain sync: <span style="color:var(--Gd);font-weight:700">Pending</span>
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
@@ -1893,7 +1999,20 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
     <div class="fg full" style="margin-bottom:10px"><label>Product Name *</label><input class="inp" id="new-prod-name" placeholder="e.g. Hand Sanitiser 750ml Carabiner" oninput="previewSku(this.value)"></div>
     <div class="frow"><div class="fg w50"><label>Manufacturer *</label><input class="inp" placeholder="Name of manufacturer"></div><div class="fg w50"><label>Brand Owner *</label><input class="inp" placeholder="e.g. Sartor Health Company Ltd"></div></div>
     <div class="frow"><div class="fg w50"><label>Category *</label><select class="sel"><option value="">Select…</option><option>Personal Care</option><option>Health Products</option><option>FMCG</option></select></div><div class="fg w50"><label>Country of Origin</label><input class="inp" placeholder="e.g. Nigeria"></div></div>
-    <div class="fg full" style="margin-bottom:10px"><label>Licence Number</label><input class="inp" placeholder="e.g. NAFDAC/01/XXXXX"></div>
+    <div class="frow">
+      <div class="fg w50">
+        <label>DORA Product Category *</label>
+        <select class="sel">
+          <option value="">Select category…</option>
+          <option value="LIQUID_FORMULATION">Liquid Formulation — bottles, sprays, gels (F1–F9 + P1–P5 full packaging verification)</option>
+          <option value="LABEL_ONLY">Label Only — sachets, blister packs, flat labels (F1–F9 label verification only)</option>
+          <option value="PHYSICAL_ACCESSORY">Physical Accessory — devices, dispensers, kits (F1–F9 + container shape + closure)</option>
+          <option value="BOX_6SIDED">Box Packaging — cartons, folding boxes, up to 6 sides (F1–F9 + all visible faces)</option>
+        </select>
+        <span class="fi-hint">Determines which DORA AI features activate at scan time. Liquid formulations verify container shape, colour, closure, and liquid clarity. 6-sided boxes verify all printed faces.</span>
+      </div>
+      <div class="fg w50"><label>Licence Number</label><input class="inp" placeholder="e.g. NAFDAC/01/XXXXX"></div>
+    </div>
     <div class="sdiv-label">Pricing & Stock</div>
     <div class="frow"><div class="fg w33"><label>Selling Price (₦) *</label><input class="inp" type="number" placeholder="0.00"></div><div class="fg w33"><label>Default Purchase Price (₦)</label><input class="inp" type="number" placeholder="0.00"></div><div class="fg w33"><label>Reorder Level *</label><input class="inp" type="number" placeholder="300"></div></div>
     <div class="fg full"><label>Assign to Warehouse *</label><select class="sel"><option>Abuja Central</option><option>Lagos Hub</option></select></div>
@@ -2184,7 +2303,7 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
       <div class="fg full"><label>Assign to Warehouse *</label><select class="sel"><option>Abuja Central</option><option>Lagos Hub</option></select></div>
     </div>
   </div>
-  <div class="mf"><button class="btn bsec" onclick="closeM('modal-invite-user')">Cancel</button><button class="btn bpri">Send Invitation</button></div>
+  <div class="mf"><button class="btn bsec" onclick="closeM('modal-invite-user')">Cancel</button><button class="btn bpri" onclick="submitInvite()">Send Invitation</button></div>
 </div></div>
 
 <!-- SET COMMISSION -->
@@ -2195,6 +2314,53 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
     <div class="frow"><div class="fg"><label>New Rate (%) *</label><input class="inp" type="number" step="0.5"></div><div class="fg"><label>Effective From *</label><input class="inp" type="date"></div></div>
   </div>
   <div class="mf"><button class="btn bsec" onclick="closeM('modal-set-commission')">Cancel</button><button class="btn bpri">Save Rate</button></div>
+</div></div>
+
+
+<!-- MODAL: VIEW WAREHOUSE INVENTORY -->
+<div class="modal-bg" id="modal-wh-inventory"><div class="modal wide">
+  <div class="mh"><div><div class="mh-t">🏭 Abuja Central — Inventory</div><div class="mh-sub">Live stock levels across all SKUs in this warehouse</div></div><button class="mx" onclick="closeM('modal-wh-inventory')">×</button></div>
+  <div class="mb">
+    <div class="krow k4 mb">
+      <div class="kc kg"><div class="klbl">Total SKUs</div><div class="kval">4</div></div>
+      <div class="kc kn"><div class="klbl">Total Units</div><div class="kval">3,925</div></div>
+      <div class="kc ka"><div class="klbl">Low Stock SKUs</div><div class="kval">2</div></div>
+      <div class="kc kr"><div class="klbl">Out of Stock</div><div class="kval">1</div></div>
+    </div>
+    <div class="card" style="margin-bottom:0"><div class="tw"><table>
+      <thead><tr><th>SKU</th><th>Product</th><th>Batch</th><th>Available</th><th>Reserved</th><th>Reorder Level</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td style="font-family:'DM Mono',monospace;font-size:11px">SH-50-CAR</td><td>Hand Sanitiser 500ml</td><td style="font-family:'DM Mono',monospace;font-size:11px">BATCH-042</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--Gd)">2,400</td><td style="font-family:'DM Mono',monospace">200</td><td style="font-family:'DM Mono',monospace">500</td><td><span class="badge bg2">OK</span></td></tr>
+        <tr><td style="font-family:'DM Mono',monospace;font-size:11px">SH-25-CAR</td><td>Hand Sanitiser 250ml Carabiner</td><td style="font-family:'DM Mono',monospace;font-size:11px">BATCH-041</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--at)">340</td><td style="font-family:'DM Mono',monospace">60</td><td style="font-family:'DM Mono',monospace">500</td><td><span class="badge ba">Low Stock</span></td></tr>
+        <tr><td style="font-family:'DM Mono',monospace;font-size:11px">SH-25-SIL</td><td>Hand Sanitiser 250ml Silicone</td><td style="font-family:'DM Mono',monospace;font-size:11px">BATCH-039</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--at)">85</td><td style="font-family:'DM Mono',monospace">20</td><td style="font-family:'DM Mono',monospace">500</td><td><span class="badge ba">Low Stock</span></td></tr>
+        <tr><td style="font-family:'DM Mono',monospace;font-size:11px">SH-25-HOK</td><td>Silicone Hook Pack</td><td style="font-family:'DM Mono',monospace;font-size:11px">BATCH-037</td><td style="font-family:'DM Mono',monospace;font-weight:700;color:var(--rt)">0</td><td style="font-family:'DM Mono',monospace">0</td><td style="font-family:'DM Mono',monospace">300</td><td><span class="badge br">Out of Stock</span></td></tr>
+      </tbody>
+    </table></div></div>
+  </div>
+  <div class="mf"><button class="btn bsec" onclick="closeM('modal-wh-inventory')">Close</button><button class="btn bgrn bsm" onclick="closeM('modal-wh-inventory');openM('modal-replenishment-request')">Request Replenishment →</button></div>
+</div></div>
+
+<!-- MODAL: MANAGE / ASSIGN WAREHOUSE STAFF -->
+<div class="modal-bg" id="modal-wh-staff"><div class="modal">
+  <div class="mh"><div><div class="mh-t">👥 Warehouse Staff — Abuja Central</div><div class="mh-sub">Manage assigned staff and roles for this warehouse</div></div><button class="mx" onclick="closeM('modal-wh-staff')">×</button></div>
+  <div class="mb">
+    <div class="info-banner info"><span class="ico">ℹ</span><div>Staff assigned here appear as operators for this warehouse. Warehouse Managers can approve GRNs and dispatch LPOs. Inventory Officers can receive stock and update levels.</div></div>
+    <div class="tw"><table style="font-size:13px">
+      <thead><tr><th>Name</th><th>Role</th><th>Assigned Since</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Musa Abdullahi</strong></td><td><span class="badge ba">WH Manager</span></td><td>15 Jan 2026</td><td><span class="badge bg2">Active</span></td><td><button class="btn bred bxs" onclick="showToast('Musa Abdullahi unassigned from Abuja Central.','warn')">Unassign</button></td></tr>
+        <tr><td><strong>Amaka Obi</strong></td><td><span class="badge bbl">Inventory Officer</span></td><td>1 Feb 2026</td><td><span class="badge bg2">Active</span></td><td><button class="btn bred bxs" onclick="showToast('Amaka Obi unassigned from Abuja Central.','warn')">Unassign</button></td></tr>
+        <tr><td><strong>Chidi Okeke</strong></td><td><span class="badge bx">Driver</span></td><td>1 Mar 2026</td><td><span class="badge bg2">Active</span></td><td><button class="btn bred bxs" onclick="showToast('Chidi Okeke unassigned from Abuja Central.','warn')">Unassign</button></td></tr>
+      </tbody>
+    </table></div>
+    <div class="sdiv-label" style="margin-top:16px">Assign Existing User</div>
+    <div class="frow">
+      <div class="fg" style="flex:2"><label class="fi">User *</label><select class="sel"><option value="">Select staff member…</option><option>Einstein Dare (Merchandiser)</option><option>Samuel Okon (Sales Rep)</option><option>Emmanuel Batimehin (Sales Rep)</option></select></div>
+      <div class="fg" style="flex:1"><label class="fi">Warehouse Role *</label><select class="sel"><option>WH Manager</option><option>Inventory Officer</option><option>Driver</option></select></div>
+      <div style="align-self:flex-end;padding-bottom:1px"><button class="btn bgrn bsm" onclick="showToast('Staff member assigned to Abuja Central.','ok')">Assign</button></div>
+    </div>
+  </div>
+  <div class="mf"><button class="btn bsec" onclick="closeM('modal-wh-staff')">Close</button></div>
 </div></div>
 
 <!-- ADD WAREHOUSE -->
@@ -2700,9 +2866,9 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
         <div class="irow"><span class="ilbl">Driver</span><span class="ival">Chidi Okeke · ABJ-234-KW</span></div>
 
         <div id="qr-sartor-chain-block" style="display:none;margin-top:12px">
-          <div class="sdiv-label">SartorChain Sync (CRM 360)</div>
+          <div class="sdiv-label">Sartor-Chain Sync (CRM 360)</div>
           <div class="irow"><span class="ilbl">Supply Event</span><span class="ival"><span class="badge ba">Pending — awaiting QR confirmation</span></span></div>
-          <div style="font-size:11px;color:var(--tx3);margin-top:4px">On QR confirmation, a SupplyConfirmed event will be emitted to SartorChain and batch provenance records updated for DORA scan validation.</div>
+          <div style="font-size:11px;color:var(--tx3);margin-top:4px">On QR confirmation, a SupplyConfirmed event will be emitted to Sartor-Chain and batch provenance records updated for DORA scan validation.</div>
         </div>
 
         <div class="info-banner warn" style="margin-top:12px"><span class="ico">&#x26A0;</span><div>If the customer does not confirm within 72 hours, the token expires. You can regenerate a new QR link from this modal (Finance/CEO only). An expiry alert will be sent to Finance Manager and CEO.</div></div>
@@ -2725,7 +2891,7 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
     <div id="qr-step-otp" style="">
       <div style="text-align:center;margin-bottom:16px">
         <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:700;color:var(--N);margin-bottom:4px">Sartor Health Company Ltd</div>
-        <div style="font-size:11px;color:var(--tx3)">Delivery confirmation · Powered by SartorCRM</div>
+        <div style="font-size:11px;color:var(--tx3)">Delivery confirmation · Powered by Sartor CRM</div>
       </div>
       <div style="background:var(--bg);border-radius:9px;padding:14px;margin-bottom:14px">
         <div style="font-size:11px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Delivery Details</div>
@@ -2859,6 +3025,367 @@ label{font-size:11px;font-weight:700;color:var(--tx2);letter-spacing:.2px}
 </div></div>
 
 
+
+
+<!-- MODAL: CHANGE BILLING CYCLE -->
+<div class="modal-bg" id="modal-billing-cycle"><div class="modal narrow">
+  <div class="mh"><div><div class="mh-t">Switch Billing Cycle</div><div class="mh-sub">Sartor CRM 360 &middot; Full Deployment &middot; Year 1 &middot; Currently: Monthly</div></div><button class="mx" onclick="closeM('modal-billing-cycle')">&times;</button></div>
+  <div class="mb">
+    <div class="info-banner info"><span class="ico">&#8505;</span><div>20% discount applies to both SC+DORA deployment and CRM subscription when paid as an annual lump sum upfront. Monthly billing carries no discount. All discounted prices are paid in full upfront — not billed monthly.</div></div>
+
+    <!-- MONTHLY — current -->
+    <div style="border:2px solid var(--N);border-radius:9px;padding:14px;background:var(--bb);margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <strong style="color:var(--bt)">Monthly Billing</strong>
+        <span class="badge bx">Current</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.06);font-size:12px">
+        <span style="color:var(--bt)">SC + DORA AI deployment (&#8358;4,500,000 &divide; 12)</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--N)">&#8358;375,000/mo</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.06);font-size:12px">
+        <span style="color:var(--bt)">CRM 360 subscription &middot; Unlimited users</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--N)">&#8358;375,000/mo</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:700">
+        <span>Year 1 monthly total</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--N)">&#8358;750,000/mo</span>
+      </div>
+      <div style="font-size:10px;color:var(--bt);margin-top:4px">&#8358;9,000,000 billed over 12 months &middot; No discount &middot; 12-month minimum</div>
+    </div>
+
+    <!-- ANNUAL — switch to -->
+    <div style="border:2px solid var(--G);border-radius:9px;padding:14px;background:var(--Gb);margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <strong style="color:var(--Gd)">Annual Billing &mdash; Lump Sum Upfront</strong>
+        <span class="badge bg2">Save &#8358;1,800,000</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.06);font-size:12px">
+        <span style="color:var(--Gd)">SC + DORA AI deployment (&#8358;4,500,000 &times; 80%)</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--Gd)">&#8358;3,600,000</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(0,0,0,.06);font-size:12px">
+        <span style="color:var(--Gd)">CRM 360 subscription (&#8358;4,500,000 &times; 80%) &middot; Unlimited users</span>
+        <span style="font-family:'DM Mono',monospace;font-weight:700;color:var(--Gd)">&#8358;3,600,000</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px;font-weight:700">
+        <span style="color:var(--Gd)">Year 1 annual lump sum</span>
+        <span style="font-family:'DM Mono',monospace;color:var(--Gd)">&#8358;7,200,000</span>
+      </div>
+      <div style="font-size:10px;color:var(--Gd);margin-top:4px">Paid in full upfront &middot; 20% off both components &middot; Saves &#8358;1,800,000 vs monthly</div>
+    </div>
+
+    <div style="padding:9px 11px;background:var(--ab);border-radius:7px;font-size:11px;color:var(--at);margin-bottom:4px">
+      &#9888; <strong>Pilot fee (&#8358;3,500,000) is always a flat one-time charge</strong> — no monthly split, no discount, regardless of billing cycle. The discount above applies to the Full Deployment engagement fee and CRM subscription only.
+    </div>
+  </div>
+  <div class="mf" style="flex-wrap:wrap;gap:8px">
+    <button class="btn bsec" onclick="closeM('modal-billing-cycle')">Cancel</button>
+    <button class="btn bgrn" style="flex:1;justify-content:center;min-width:180px" onclick="closeM('modal-billing-cycle');openM('modal-payment-gateway')">Switch to Annual &mdash; Pay &#8358;7,200,000</button>
+  </div>
+</div></div>
+
+<!-- MODAL: CHANGE PLAN -->
+<div class="modal-bg" id="modal-change-plan"><div class="modal">
+  <div class="mh"><div><div class="mh-t">Change Sartor CRM Plan</div><div class="mh-sub" id="cp-current-text">Current: Sartor CRM 360 &middot; Unlimited users &middot; Flat monthly fee</div></div><button class="mx" onclick="closeM('modal-change-plan')">&times;</button></div>
+  <div class="mb">
+    <div class="info-banner warn" id="cp-warning"><span class="ico">&#9888;</span><div>Downgrading from CRM 360 removes Sartor-Chain, DORA AI, and operational modules immediately at next billing cycle.</div></div>
+
+    <!-- Billing cycle toggle -->
+    <div style="display:flex;align-items:center;gap:10px;background:var(--bg);border:1px solid var(--brd);border-radius:8px;padding:10px 14px;margin-bottom:14px">
+      <span style="font-size:12px;font-weight:600;color:var(--tx2)">Billing:</span>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+        <input type="radio" name="plan-billing" value="monthly" checked onchange="planBillingChange(this)" style="accent-color:var(--N)"> Monthly <span style="color:var(--tx3)">(no discount)</span>
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px">
+        <input type="radio" name="plan-billing" value="annual" onchange="planBillingChange(this)" style="accent-color:var(--G)"> Annual lump sum <span style="background:var(--G);color:#000;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">Save 20%</span>
+      </label>
+    </div>
+
+    <!-- Plan cards -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" class="plan-compare-grid">
+
+      <!-- T1: Field -->
+      <div class="plan-card" data-tier="sn" data-rate-mo="15000" data-rate-ann="12000" data-min="3" style="border:1px solid var(--brd);border-radius:9px;padding:13px;cursor:pointer" onclick="selectNewPlan(this)">
+        <div style="font-family:'Fraunces',serif;font-size:13px;font-weight:700;color:var(--tx2);margin-bottom:3px">Sartor CRM Field</div>
+        <div style="font-size:9px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">T1 &middot; Per revenue seat</div>
+        <div class="plan-price-mo" style="font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--N)">&#8358;15,000<span style="font-size:10px;font-weight:400;color:var(--tx3)">/seat/mo</span></div>
+        <div class="plan-price-ann" style="display:none;font-family:'DM Mono',monospace;font-size:16px;font-weight:700;color:var(--G)">&#8358;12,000<span style="font-size:10px;font-weight:400;color:var(--tx3)">/seat/yr &mdash; 20% off</span></div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:9px">Min 3 revenue seats</div>
+        <div style="font-size:11px;color:var(--tx3);line-height:1.8">Pipeline &amp; Leads<br>LPOs &amp; Invoices<br><span style="color:var(--rt)">No WH / Drivers / GRN<br>No Sartor-Chain / DORA AI</span></div>
+      </div>
+
+      <!-- T2: Depot -->
+      <div class="plan-card" data-tier="snp" data-rate-mo="22000" data-rate-ann="17600" data-op-rate-mo="8000" data-op-rate-ann="6400" data-min="5" style="border:1px solid var(--pur);border-radius:9px;padding:13px;cursor:pointer;background:var(--pb)" onclick="selectNewPlan(this)">
+        <div style="font-family:'Fraunces',serif;font-size:13px;font-weight:700;color:var(--pt);margin-bottom:3px">Sartor CRM Depot</div>
+        <div style="font-size:9px;font-weight:700;color:var(--pt);opacity:.7;text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">T2 &middot; Revenue + Operational</div>
+        <div class="plan-price-mo" style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--pt)">&#8358;22,000<span style="font-size:10px;font-weight:400;opacity:.7">/rev seat/mo</span><br>&#8358;8,000<span style="font-size:10px;font-weight:400;opacity:.7">/op seat/mo</span></div>
+        <div class="plan-price-ann" style="display:none;font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--G)">&#8358;17,600<span style="font-size:10px;font-weight:400">/rev &mdash; 20% off</span><br>&#8358;6,400<span style="font-size:10px;font-weight:400">/op &mdash; 20% off</span></div>
+        <div style="font-size:10px;color:var(--pt);opacity:.7;margin-bottom:9px">Min 5 seats total</div>
+        <div style="font-size:11px;color:var(--pt);opacity:.9;line-height:1.8">Everything in Field +<br>Warehouses &amp; Drivers<br>GRN / Receive Stock<br><span style="opacity:.6">No Sartor-Chain</span></div>
+      </div>
+      <div class="plan-card" data-tier="360" data-flat-mo="750000" data-flat-ann="7200000" style="border:2px solid var(--G);border-radius:9px;padding:13px;cursor:pointer;background:#E6FAF0" onclick="selectNewPlan(this)">
+        <div style="font-family:'Fraunces',serif;font-size:13px;font-weight:700;color:var(--Gd);margin-bottom:3px">Sartor CRM 360</div>
+        <div style="font-size:9px;font-weight:700;color:var(--Gd);text-transform:uppercase;letter-spacing:.3px;margin-bottom:8px">T3 &middot; Flat fee &middot; Unlimited users</div>
+        <div class="plan-price-mo" style="font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--Gd)">&#8358;750,000<span style="font-size:10px;font-weight:400;opacity:.7">/mo flat</span></div>
+        <div class="plan-price-ann" style="display:none;font-family:'DM Mono',monospace;font-size:14px;font-weight:700;color:var(--Gd)">&#8358;7,200,000<span style="font-size:10px;font-weight:400">/yr &mdash; 20% off</span></div>
+        <div style="font-size:10px;color:var(--Gd);opacity:.8;margin-bottom:9px">Unlimited users &middot; no per-seat charge</div>
+        <div style="font-size:11px;color:var(--Gd);opacity:.9;line-height:1.8">Everything in Depot +<br>Sartor-Chain + DORA AI<br>Stock Reconciliation<br>Field Intelligence</div>
+      </div>
+
+      <!-- T3: CRM 360 — current -->
+      
+    </div>
+
+    <!-- Seat configuration (shown when plan selected) -->
+    <div id="plan-seat-config" style="display:none;background:var(--bg);border:1px solid var(--brd);border-radius:9px;padding:14px;margin-bottom:12px">
+      <div class="sdiv-label" style="margin-bottom:10px">Seat Configuration</div>
+      <div class="g2">
+        <div class="fg">
+          <label class="fi" id="plan-rev-seat-label">Revenue Seats *</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn bsec bsm" onclick="adjustSeats('rev',-1)">&#8722;</button>
+            <input class="inp" type="number" id="plan-rev-seats" value="3" min="3" style="text-align:center;font-family:'DM Mono',monospace;font-weight:700;width:70px" oninput="recalcPlan()">
+            <button class="btn bsec bsm" onclick="adjustSeats('rev',1)">+</button>
+          </div>
+          <div class="fi-hint" id="plan-rev-hint">Min 3 revenue seats</div>
+        </div>
+        <div class="fg" id="plan-op-seat-group" style="display:none">
+          <label class="fi">Operational Seats</label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="btn bsec bsm" onclick="adjustSeats('op',-1)">&#8722;</button>
+            <input class="inp" type="number" id="plan-op-seats" value="0" min="0" style="text-align:center;font-family:'DM Mono',monospace;font-weight:700;width:70px" oninput="recalcPlan()">
+            <button class="btn bsec bsm" onclick="adjustSeats('op',1)">+</button>
+          </div>
+          <div class="fi-hint">WH managers, inventory officers, drivers</div>
+        </div>
+      </div>
+      <!-- Live price display -->
+      <div id="plan-price-display" style="margin-top:12px;background:var(--N);border-radius:8px;padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Price Breakdown</div>
+        <div id="plan-price-rows"></div>
+        <div style="display:flex;justify-content:space-between;padding:6px 0;margin-top:4px;border-top:1px solid rgba(255,255,255,.15);font-size:14px;font-weight:700;color:#fff">
+          <span id="plan-total-label">Monthly Total</span>
+          <span id="plan-total" style="font-family:'DM Mono',monospace;color:var(--G)">&#8358;0</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="mf" style="flex-wrap:wrap;gap:8px">
+    <button class="btn bsec" onclick="closeM('modal-change-plan')">Cancel</button>
+    <button class="btn bgrn" id="btn-confirm-plan-change" disabled onclick="confirmPlanChange()">Review &amp; Pay &rarr;</button>
+  </div>
+</div></div>
+
+<!-- MODAL: PAYMENT GATEWAY -->
+<div class="modal-bg" id="modal-payment-gateway"><div class="modal narrow">
+  <div class="mh"><div><div class="mh-t">💳 Secure Payment</div><div class="mh-sub">Powered by Paystack · SSL encrypted</div></div><button class="mx" onclick="closeM('modal-payment-gateway')">×</button></div>
+  <div class="mb">
+    <div style="background:var(--bg);border:1px solid var(--brd);border-radius:8px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between">
+      <div><div style="font-size:12px;color:var(--tx3);margin-bottom:2px">Amount due</div><div id="pgw-amount" style="font-family:'DM Mono',monospace;font-size:22px;font-weight:700;color:var(--N)">₦225,000</div></div>
+      <div style="text-align:right"><div id="pgw-desc" style="font-size:11px;color:var(--tx3)">Sartor CRM 360</div><div id="pgw-ref" style="font-size:11px;color:var(--tx3)">June 2026 billing</div></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label class="fi">Card Number</label><input class="inp" placeholder="0000 0000 0000 0000" maxlength="19" oninput="this.value=this.value.replace(/[^0-9 ]/g,'')"></div>
+    <div class="frow">
+      <div class="fg w50"><label class="fi">Expiry Date</label><input class="inp" placeholder="MM / YY" maxlength="7"></div>
+      <div class="fg w50"><label class="fi">CVV</label><input class="inp" placeholder="•••" maxlength="4" type="password"></div>
+    </div>
+    <div class="fg" style="margin-bottom:10px"><label class="fi">Cardholder Name</label><input class="inp" placeholder="Name on card"></div>
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--Gb);border-radius:7px;font-size:11px;color:var(--Gd);margin-bottom:2px">
+      🔒 This payment is secured with TLS 256-bit encryption. Card details are processed by Paystack and never stored on Sartor servers.
+    </div>
+  </div>
+  <div class="mf">
+    <button class="btn bsec" onclick="closeM('modal-payment-gateway')">Cancel</button>
+    <button class="btn bgrn" id="pgw-pay-btn" onclick="completePaystackPayment()">Pay Now</button>
+  </div>
+</div></div>
+
+
+<!-- MODAL: RAISE PURCHASE ORDER -->
+<div class="modal-bg" id="modal-raise-po"><div class="modal wide">
+  <div class="mh"><div><div class="mh-t">&#x1F4CB; Raise Purchase Order</div><div class="mh-sub">Download as PDF and send to supplier manually. Reference the PO number on your GRN when stock arrives.</div></div><button class="mx" onclick="closeM('modal-raise-po')">&#215;</button></div>
+  <div class="mb">
+    <div class="g2 mb">
+      <div class="fg">
+        <label class="fi">Supplier *</label>
+        <select class="sel" id="po-supplier">
+          <option value="">Select supplier...</option>
+          <option value="SUP-001">Aromatic Industries Ltd — Abuja</option>
+          <option value="SUP-002">NovaChem Distributors — Lagos</option>
+          <option value="SUP-003">PackTech Solutions — Kano</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fi">PO Number</label>
+        <input class="inp" value="PO-2026-0047" readonly style="font-family:'DM Mono',monospace;background:var(--bg2)">
+        <div class="fi-hint">Auto-generated · Reference this on your GRN when stock arrives</div>
+      </div>
+    </div>
+    <div class="g2 mb">
+      <div class="fg">
+        <label class="fi">PO Date *</label>
+        <input class="inp" type="date" id="po-date">
+      </div>
+      <div class="fg">
+        <label class="fi">Expected Delivery Date</label>
+        <input class="inp" type="date" id="po-delivery-date">
+      </div>
+    </div>
+
+    <div class="sdiv-label">Line Items</div>
+    <div id="po-lines">
+      <div class="po-line" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px">
+        <div><label class="fi">Product / SKU *</label><select class="sel"><option value="">Select SKU...</option><option>SHS-001 — Hand Sanitiser 500ml</option><option>CHP-002 — Carabiner Holder Pack</option><option>SHP-003 — Silicone Hook Pack</option><option>SHS-004 — Hand Sanitiser 250ml</option></select></div>
+        <div><label class="fi">Qty *</label><input class="inp" type="number" placeholder="0" oninput="calcPOLine(this)"></div>
+        <div><label class="fi">Unit Cost (₦) *</label><input class="inp" type="number" placeholder="0.00" oninput="calcPOLine(this)"></div>
+        <div><label class="fi">Line Total</label><input class="inp" id="po-line-total-1" value="₦0.00" readonly style="background:var(--bg2)"></div>
+        <div style="padding-bottom:1px"><button class="btn bred bsm" onclick="this.closest('.po-line').remove();calcPOTotal()">✕</button></div>
+      </div>
+    </div>
+    <button class="btn bsec bsm" onclick="addPOLine()" style="margin-bottom:14px">+ Add Line Item</button>
+
+    <div class="g2 mb">
+      <div class="fg">
+        <label class="fi">Payment Terms</label>
+        <select class="sel">
+          <option>Net 30 days</option>
+          <option>Net 15 days</option>
+          <option>50% upfront, 50% on delivery</option>
+          <option>100% upfront</option>
+          <option>Cash on delivery</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fi">Delivery Address</label>
+        <input class="inp" value="Plot 4 Lugbe Industrial Estate, Abuja — FCT">
+      </div>
+    </div>
+    <div class="fg mb">
+      <label class="fi">Notes to Supplier</label>
+      <input class="inp" placeholder="Optional — e.g. please pack in cartons of 24">
+    </div>
+
+    <div style="background:var(--bg2);border-radius:8px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between">
+      <div style="font-size:13px;font-weight:600">PO Total</div>
+      <div id="po-grand-total" style="font-family:'DM Mono',monospace;font-size:18px;font-weight:700;color:var(--N)">₦0.00</div>
+    </div>
+  </div>
+  <div class="mf">
+    <button class="btn bsec" onclick="closeM('modal-raise-po')">Cancel</button>
+    <button class="btn bsec" onclick="showToast('PO saved as Draft. Find it under Supplier → POs.','ok')">Save Draft</button>
+    <button class="btn bpri" onclick="closeM('modal-raise-po');showToast('PO-2026-0047 generated. PDF downloading — send to supplier manually. Reference PO-2026-0047 on your GRN when stock arrives.','ok')">&#x1F4C4; Generate PDF &amp; Download</button>
+  </div>
+</div></div>
+
+
+<!-- MODAL: DOMAIN UPGRADE -->
+<div class="modal-bg" id="modal-domain-upgrade"><div class="modal">
+  <div class="mh"><div><div class="mh-t">Verification Domain Upgrade</div><div class="mh-sub">Applies to new QR batches only. Existing printed QR codes continue to work permanently.</div></div><button class="mx" onclick="closeM('modal-domain-upgrade')">&#215;</button></div>
+  <div class="mb">
+    <div style="border:2px solid var(--G);border-radius:9px;padding:13px;background:var(--Gb);margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><strong style="color:var(--Gd)">Starter &mdash; Active</strong><span class="badge bg">Current</span></div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--Gd);margin-bottom:3px">verify.dorascan.ai/{client_code}/{order_token}</div>
+      <div style="font-size:11px;color:var(--Gd)">Default for all accounts &middot; Included at no charge</div>
+    </div>
+    <div style="border:1px solid var(--brd);border-radius:9px;padding:13px;margin-bottom:10px">
+      <div style="font-weight:700;margin-bottom:4px">Growth Subdomain</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--tx3);margin-bottom:4px">verify-{clientname}.dorascan.ai/{order_token}</div>
+      <div style="font-size:11px;color:var(--tx2);margin-bottom:6px">Your brand name in the hostname &middot; Custom brand theme &middot; Sartor manages DNS under *.dorascan.ai wildcard SSL &middot; No action needed from you</div>
+      <div style="display:flex;gap:14px;font-size:12px;margin-bottom:8px"><span><strong>&#8358;100,000</strong> one-time setup</span><span><strong>&#8358;50,000/year</strong> maintenance</span></div>
+      <div class="fg" style="margin-bottom:8px"><label class="fi">Preferred subdomain name</label><input class="inp" placeholder="e.g. sartorhealth &rarr; verify-sartorhealth.dorascan.ai"></div>
+      <button class="btn bpri bsm" onclick="closeM('modal-domain-upgrade');openM('modal-payment-gateway')">Pay &#8358;100,000 &amp; Request &rarr;</button>
+    </div>
+    <div style="border:1px solid var(--brd);border-radius:9px;padding:13px">
+      <div style="font-weight:700;margin-bottom:4px">Enterprise CNAME</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--tx3);margin-bottom:4px">verify.{clientdomain}.com/{order_token}</div>
+      <div style="font-size:11px;color:var(--tx2);margin-bottom:4px">Fully client-owned domain &middot; Individual SSL &middot; Client adds CNAME at DNS provider</div>
+      <div style="display:flex;gap:14px;font-size:12px;margin-bottom:8px"><span><strong>&#8358;150,000</strong> setup</span><span><strong>&#8358;200,000/year</strong> maintenance</span><span><strong>&#8358;350,000</strong> Year 1 total</span></div>
+      <div class="fg" style="margin-bottom:8px"><label class="fi">Your verification domain</label><input class="inp" placeholder="e.g. verify.yourcompany.com"></div>
+      <button class="btn bpri bsm" onclick="closeM('modal-domain-upgrade');openM('modal-payment-gateway')">Pay &#8358;350,000 &amp; Request &rarr;</button>
+    </div>
+  </div>
+  <div class="mf"><button class="btn bsec" onclick="closeM('modal-domain-upgrade')">Close</button></div>
+</div></div>
+
+<!-- MODAL: PILOT → FULL DEPLOYMENT CONVERSION -->
+<div class="modal-bg" id="modal-pilot-convert"><div class="modal narrow">
+  <div class="mh"><div><div class="mh-t">Convert Pilot to Full Deployment</div><div class="mh-sub">Pilot fee already paid: &#8358;3,500,000 &middot; Credited toward Full Deployment</div></div><button class="mx" onclick="closeM('modal-pilot-convert')">&times;</button></div>
+  <div class="mb">
+    <div class="info-banner ok"><span class="ico">&#10003;</span><div>You&rsquo;ve completed your 90-day pilot. Your &#8358;3,500,000 pilot fee is fully credited. You only pay the conversion difference (&#8358;1,000,000) to convert to Full Deployment.</div></div>
+
+    <div style="background:var(--bg);border:1px solid var(--brd);border-radius:9px;padding:14px;margin-bottom:12px">
+      <div class="sdiv-label" style="margin-bottom:10px">Conversion Fee</div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bg2);font-size:12px"><span>Full Deployment fee (standalone)</span><span style="font-family:'DM Mono',monospace">&#8358;4,500,000</span></div>
+      <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bg2);font-size:12px"><span>Less: Pilot fee already paid</span><span style="font-family:'DM Mono',monospace;color:var(--Gd)">&#8722;&#8358;3,500,000</span></div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:14px;font-weight:700"><span>Conversion fee due</span><span style="font-family:'DM Mono',monospace;color:var(--N)">&#8358;1,000,000</span></div>
+    </div>
+
+    <div style="background:var(--bg);border:1px solid var(--brd);border-radius:9px;padding:14px;margin-bottom:12px">
+      <div class="sdiv-label" style="margin-bottom:10px">Payment Option</div>
+      <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid var(--brd);border-radius:8px;cursor:pointer;margin-bottom:8px" id="conv-monthly-opt">
+        <input type="radio" name="conv-billing" value="monthly" checked onchange="convBillingChange(this)" style="margin-top:3px;accent-color:var(--N)">
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Pay monthly <span style="color:var(--tx3);font-weight:400">(no discount)</span></div>
+          <div style="font-size:11px;color:var(--tx3)">&#8358;1,000,000 &divide; 12 = <strong>&#8358;83,333/month</strong> for 12 months</div>
+        </div>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:2px solid var(--brd);border-radius:8px;cursor:pointer" id="conv-annual-opt">
+        <input type="radio" name="conv-billing" value="annual" onchange="convBillingChange(this)" style="margin-top:3px;accent-color:var(--G)">
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Pay annual lump sum <span style="background:var(--G);color:#000;font-size:9px;font-weight:800;padding:1px 6px;border-radius:8px">Save 20%</span></div>
+          <div style="font-size:11px;color:var(--tx3)">&#8358;1,000,000 &times; 80% = <strong style="color:var(--Gd)">&#8358;800,000 upfront</strong></div>
+        </div>
+      </label>
+    </div>
+
+    <div style="background:var(--bg);border:1px solid var(--brd);border-radius:8px;padding:12px 14px;font-size:12px">
+      <div style="font-weight:700;margin-bottom:4px">After conversion, your Year 1 CRM 360 total:</div>
+      <div id="conv-total-display">
+        <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--bg2)"><span>Pilot fee (already paid)</span><span style="font-family:'DM Mono',monospace">&#8358;3,500,000</span></div>
+        <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--bg2)"><span>SC+DORA conversion fee</span><span id="conv-sc-fee" style="font-family:'DM Mono',monospace">&#8358;83,333/mo</span></div>
+        <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid var(--bg2)"><span>CRM 360 subscription</span><span style="font-family:'DM Mono',monospace">&#8358;375,000/mo</span></div>
+        <div style="display:flex;justify-content:space-between;padding:5px 0;font-weight:700"><span id="conv-total-label">Ongoing monthly (from now)</span><span id="conv-total" style="font-family:'DM Mono',monospace;color:var(--N)">&#8358;458,333/mo</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="mf" style="flex-wrap:wrap;gap:8px">
+    <button class="btn bsec" onclick="closeM('modal-pilot-convert')">Cancel</button>
+    <button class="btn bgrn" id="btn-conv-pay" onclick="closeM('modal-pilot-convert');openM('modal-payment-gateway')">Pay &#8358;83,333 &mdash; Convert Now &rarr;</button>
+  </div>
+</div></div>
+
+<!-- MODAL: VIEW INVOICE -->
+<div class="modal-bg" id="modal-view-invoice"><div class="modal narrow">
+  <div class="mh"><div><div class="mh-t">&#128196; Invoice</div><div class="mh-sub" id="inv-modal-sub">INV-2026-SHC-001</div></div><button class="mx" onclick="closeM('modal-view-invoice')">&times;</button></div>
+  <div class="mb">
+    <div style="background:var(--N);border-radius:8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px">
+      <div><div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:2px">Sartor Limited</div><div style="font-size:10px;color:rgba(255,255,255,.4)">RC 1845734 &middot; Abuja, FCT, Nigeria</div></div>
+      <div style="text-align:right"><div style="font-size:9px;color:rgba(255,255,255,.4);text-transform:uppercase;letter-spacing:.5px">Invoice</div><div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--G)" id="inv-number">INV-2026-SHC-001</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:14px">
+      <div><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;margin-bottom:2px">Bill To</div><div style="font-weight:600">Sartor Health Co. Ltd</div><div style="color:var(--tx3)">RC 1234567 &middot; Lagos &amp; Abuja</div></div>
+      <div style="text-align:right"><div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;margin-bottom:2px">Invoice Date</div><div id="inv-date" style="font-weight:600">June 15, 2026</div><div style="color:var(--tx3)">Due: 30 days</div></div>
+    </div>
+    <div id="inv-line-items" style="margin-bottom:14px;border:1px solid var(--brd);border-radius:8px;overflow:hidden">
+      <div style="background:var(--bg2);padding:8px 12px;display:grid;grid-template-columns:1fr auto auto;gap:12px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px">
+        <span>Description</span><span>Qty</span><span>Amount</span>
+      </div>
+      <div id="inv-rows"></div>
+      <div style="background:var(--bg);padding:10px 12px;display:grid;grid-template-columns:1fr auto;gap:12px;font-size:13px;font-weight:700;border-top:1px solid var(--brd)">
+        <span>Total Due</span>
+        <span id="inv-total" style="font-family:'DM Mono',monospace;color:var(--N)">&#8358;750,000</span>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--tx3)">Payment via Paystack &middot; Ref: <span id="inv-ref" style="font-family:'DM Mono',monospace">SHC-2026-06</span></div>
+  </div>
+  <div class="mf" style="flex-wrap:wrap;gap:8px">
+    <button class="btn bsec" onclick="closeM('modal-view-invoice')">Close</button>
+    <button class="btn bsec bsm" onclick="showToast('Invoice PDF downloading...','ok')">&#8681; PDF</button>
+    <button class="btn bgrn bsm" onclick="closeM('modal-view-invoice');openM('modal-payment-gateway')">Pay Now &rarr;</button>
+  </div>
+</div></div>
+
 <script>
 'use strict';
 let ROLE='ceo', TIER='360';
@@ -2892,6 +3419,7 @@ const NAV_CONFIG={
     {type:'item',id:'reorder-alerts',ico:'🔔',lbl:'Reorder Alerts',tier:['snp','360']},
     {type:'item',id:'reconciliation',ico:'🔢',lbl:'Stock Reconciliation',tier:['snp','360']},
     {type:'item',id:'suppliers',ico:'🏢',lbl:'Suppliers',tier:['snp','360']},
+    
     {type:'sep',lbl:'Field & Intelligence'},
     {type:'item',id:'visits',ico:'🏪',lbl:'Store Visits'},
     {type:'item',id:'intel',ico:'🔍',lbl:'Market Intelligence'},
@@ -2899,7 +3427,7 @@ const NAV_CONFIG={
     {type:'item',id:'team',ico:'👤',lbl:'Team'},
     {type:'item',id:'reports',ico:'📊',lbl:'Reports'},
     {type:'item',id:'settings',ico:'⚙️',lbl:'Settings'},
-    {type:'item',id:'sartor360',ico:'🔗',lbl:'SartorChain + DORA',tier:['360']},
+    {type:'item',id:'sartor360',ico:'🔗',lbl:'Sartor-Chain + DORA',tier:['360']},
   ],
   admin:[
     {type:'item',id:'dash',ico:'🏠',lbl:'Dashboard'},
@@ -2943,6 +3471,7 @@ const NAV_CONFIG={
     {type:'item',id:'products',ico:'📋',lbl:'Product Catalog'},
     {type:'item',id:'reorder-alerts',ico:'🔔',lbl:'Reorder Alerts'},
     {type:'item',id:'reconciliation',ico:'🔢',lbl:'Stock Reconciliation'},
+    
     {type:'sep',lbl:'Receiving'},
     {type:'item',id:'grn-log',ico:'📥',lbl:'Receive Stock (GRN)'},
   ],
@@ -3024,7 +3553,7 @@ function switchTier(t){
     var fn=b.getAttribute('onclick')||'';
     b.classList.toggle('on',fn.indexOf("'"+t+"'")>-1&&fn.indexOf('switchTier')>-1);
   });
-  var labels={sn:'Sales Navigator',snp:'Sales Nav Plus','360':'CRM 360'};
+  var labels={sn:'Sartor CRM Field',snp:'Sartor CRM Depot','360':'CRM 360'};
   var cls={sn:'t-sn',snp:'t-snp','360':'t-360'};
   var badge=document.getElementById('tier-badge');
   if(badge){badge.textContent=labels[t];badge.className='tier-badge '+cls[t];}
@@ -3034,7 +3563,7 @@ function switchTier(t){
   if(tn)tn.textContent=labels[t];
   // If current role is unavailable at new tier, fall back to CEO
   if(t==='sn'&&['inv','wh','driver'].indexOf(ROLE)>-1){
-    showToast(ROLE_META[ROLE].role+' is not available on Sales Navigator. Switched to CEO.','warn');
+    showToast(ROLE_META[ROLE].role+' is not available on Sartor CRM Field. Switched to CEO.','warn');
     switchRole('ceo');
     return;
   }
@@ -3042,6 +3571,8 @@ function switchTier(t){
   updateRoleBarForTier();
   applyReportTabs();
   applyQrTierVisibility();
+  if(typeof renderBilling==='function') renderBilling();
+  if(typeof renderSeatUsage==='function') renderSeatUsage();
 }
 
 function updateRoleBarForTier(){
@@ -3055,7 +3586,7 @@ function updateRoleBarForTier(){
     var locked=allowed.indexOf(role)===-1;
     b.style.opacity=locked?'0.3':'';
     b.disabled=locked;
-    b.title=locked?'Requires Sales Nav Plus or CRM 360':'';
+    b.title=locked?'Requires Sartor CRM Depot or Sartor CRM 360':'';
   });
 }
 
@@ -3106,6 +3637,7 @@ function buildNav(){
 
 // ── PAGE ROUTING ─────────────────────────────────────────────────────
 function goPage(pid,title,skipClose){
+  closeSB();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   const p=document.getElementById(pid);
   if(p)p.classList.add('on');
@@ -3324,6 +3856,8 @@ function switchSettingsPanel(id,btn){
   if(p){p.style.display='';p.classList.add('on');}
   document.querySelectorAll('.settings-nav-item').forEach(function(b){b.classList.remove('on');});
   if(btn)btn.classList.add('on');
+  if(id==='sp-billing' && typeof renderBilling==='function') renderBilling();
+  if(id==='sp-users' && typeof renderSeatUsage==='function') renderSeatUsage();
 }
 
 // ── DROPDOWN ACTIONS ─────────────────────────────────────────────────
@@ -3364,7 +3898,11 @@ function openSB(){
   document.getElementById('sb').classList.add('open');
   document.getElementById('ov').classList.add('on');
 }
-function closeSB(){document.getElementById('sb').classList.remove('open');}
+function closeSB(){
+  document.getElementById('sb').classList.remove('open');
+  const ov=document.getElementById('ov');
+  if(ov)ov.classList.remove('on');
+}
 
 // ── SEARCH / FILTER TABLE ────────────────────────────────────────────
 // cols: array of td indices to search within
@@ -3503,7 +4041,7 @@ function updatePackCommitSummary(){
       const match=total===lpoQty;
       const status=match?'✓ Matches LPO qty':total>lpoQty?'⚠ Over LPO qty':'⚠ Under LPO qty ('+lpoQty+' required)';
       html+=`<div class="pack-commit-row">
-        <span style="font-family:'DM Mono',monospace">${sku}</span>
+        <span style="font-family:\'DM Mono\',monospace">${sku}</span>
         <span style="font-weight:700;color:${match?'var(--G)':'var(--amb)'}">${total} units — ${status}</span>
       </div>`;
     }
@@ -3664,11 +4202,11 @@ function populateLpoPreview(){
     const unit=unitEl?unitEl.value:'—';
     const sub=subEl?subEl.value:'—';
     itemsHtml+=`<tr>
-      <td style="font-family:'DM Mono',monospace;font-size:11px">${sku}</td>
+      <td style="font-family:\'DM Mono\',monospace;font-size:11px">${sku}</td>
       <td>${prodText}</td>
       <td style="text-align:right">${qty}</td>
-      <td style="text-align:right;font-family:'DM Mono',monospace">${unit}</td>
-      <td style="text-align:right;font-family:'DM Mono',monospace;font-weight:700">${sub}</td>
+      <td style="text-align:right;font-family:\'DM Mono\',monospace">${unit}</td>
+      <td style="text-align:right;font-family:\'DM Mono\',monospace;font-weight:700">${sub}</td>
     </tr>`;
   });
   const tbody=document.getElementById('prev-items');
@@ -3729,8 +4267,8 @@ function addLpoRow(){
   d.innerHTML=`
     <select class="sel" onchange="calcRow(this.closest('.lpo-item-row'))"><option value="">Select product…</option>${opts}</select>
     <input class="inp lpo-qty" type="number" placeholder="Qty" min="1" style="text-align:right" oninput="calcRow(this.closest('.lpo-item-row'))">
-    <input class="inp lpo-unit" readonly placeholder="Unit price" style="background:var(--bg);text-align:right;font-family:'DM Mono',monospace">
-    <input class="inp lpo-sub" readonly placeholder="Subtotal" style="background:var(--bg);font-weight:700;text-align:right;font-family:'DM Mono',monospace">
+    <input class="inp lpo-unit" readonly placeholder="Unit price" style="background:var(--bg);text-align:right;font-family:\'DM Mono\',monospace">
+    <input class="inp lpo-sub" readonly placeholder="Subtotal" style="background:var(--bg);font-weight:700;text-align:right;font-family:\'DM Mono\',monospace">
     <button class="btn bred" style="padding:5px 8px;font-size:13px;border-radius:5px;min-width:28px" onclick="this.closest('.lpo-item-row').remove();calcGrand()">✕</button>`;
   c.appendChild(d);
 }
@@ -3840,7 +4378,7 @@ function populateInviteRoles(){
   var html='<option value="">Select role…</option>';
   html+=base.map(function(r){return '<option value="'+r.v+'">'+r.l+'</option>';}).join('');
   if(TIER==='sn'){
-    html+='<optgroup label="Requires Sales Nav Plus or CRM 360 — upgrade to unlock">';
+    html+='<optgroup label="Requires Sartor CRM Depot or CRM 360 — upgrade to unlock">';
     html+=ops.map(function(r){return '<option value="" disabled>'+r.l+' (SNP+)</option>';}).join('');
     html+='</optgroup>';
   } else {
@@ -4360,11 +4898,11 @@ function qrFinalConfirm(){
     showToast('Delivery confirmed by customer via QR. Stock deducted. Invoice aging started.','ok');
     // Update QR status badge in invoice table
     updateQrStatusBadges('confirmed');
-    // Show SartorChain sync if 360 tier
+    // Show Sartor-Chain sync if 360 tier
     if(TIER==='360'){
       var sc=document.getElementById('qr-sartor-chain-block');
       if(sc)sc.style.display='';
-      setTimeout(function(){showToast('SartorChain SupplyConfirmed event emitted. Batch provenance updated.','ok');},1800);
+      setTimeout(function(){showToast('Sartor-Chain SupplyConfirmed event emitted. Batch provenance updated.','ok');},1800);
     }
   }
 }
@@ -4383,7 +4921,7 @@ function updateQrStatusBadges(status){
   });
 }
 
-// Show SartorChain sync block only on 360 tier (called from applyRoleGates)
+// Show Sartor-Chain sync block only on 360 tier (called from applyRoleGates)
 function applyQrTierVisibility(){
   var is360=(TIER==='360');
   document.querySelectorAll('#qr-sartor-chain-block,#sartor-chain-sync,#sartor-chain-sync-inv').forEach(function(el){
@@ -4494,6 +5032,575 @@ function applyQrTierVisibility(){
   applyQrTierVisibility();
   applyLocationRoleGates();
 })();
+
+// ── STICKER ORDER HELPERS ─────────────────────────────────────────────
+function calcStickerReserve(input){
+  const qty = parseInt(input.value) || 0;
+  const available = 6200;
+  const hint = document.getElementById('stk-credit-hint');
+  const summary = document.getElementById('stk-order-summary');
+  const reserveEl = document.getElementById('stk-cred-reserve');
+  const afterEl = document.getElementById('stk-cred-after');
+  if(qty > 0){
+    const after = available - qty;
+    if(hint){
+      hint.textContent = after >= 0
+        ? 'Available after reservation: ' + after.toLocaleString() + ' credits'
+        : '⚠ Insufficient credits. Need ' + Math.abs(after).toLocaleString() + ' more.';
+      hint.className = 'fi-hint ' + (after >= 0 ? 'ok' : 'err');
+    }
+    if(summary) summary.style.display = '';
+    if(reserveEl) reserveEl.textContent = qty.toLocaleString();
+    if(afterEl){
+      afterEl.textContent = after.toLocaleString();
+      afterEl.style.color = after >= 0 ? 'var(--G)' : 'var(--red)';
+    }
+  } else {
+    if(hint){ hint.textContent = 'Available: 6,200 PIN credits'; hint.className = 'fi-hint'; }
+    if(summary) summary.style.display = 'none';
+  }
+}
+
+function calcActivationImpact(input){
+  const units = parseInt(input.value) || 0;
+  const ordered = 2000;
+  const surplus = Math.max(0, ordered - units);
+  const deducted = Math.min(units, ordered);
+  const setEl = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
+  setEl('ai-units', units > 0 ? units.toLocaleString() : '—');
+  setEl('ai-surplus', surplus > 0 ? surplus.toLocaleString() + ' credits returned' : '0');
+  setEl('ai-deducted', units > 0 ? deducted.toLocaleString() : '—');
+}
+
+// ── PURCHASE ORDER: LINE ITEM CALCULATOR ─────────────────────────────────────
+let poLineCount = 1;
+
+function addPOLine() {
+  poLineCount++;
+  const container = document.getElementById('po-lines');
+  if (!container) return;
+  const line = document.createElement('div');
+  line.className = 'po-line';
+  line.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px';
+  line.innerHTML = `
+    <div><label class="fi">Product / SKU *</label><select class="sel"><option value="">Select SKU...</option><option>SHS-001 — Hand Sanitiser 500ml</option><option>CHP-002 — Carabiner Holder Pack</option><option>SHP-003 — Silicone Hook Pack</option><option>SHS-004 — Hand Sanitiser 250ml</option></select></div>
+    <div><label class="fi">Qty *</label><input class="inp" type="number" placeholder="0" oninput="calcPOLine(this)"></div>
+    <div><label class="fi">Unit Cost (₦) *</label><input class="inp" type="number" placeholder="0.00" oninput="calcPOLine(this)"></div>
+    <div><label class="fi">Line Total</label><input class="inp" id="po-line-total-${poLineCount}" value="₦0.00" readonly style="background:var(--bg2)"></div>
+    <div style="padding-bottom:1px"><button class="btn bred bsm" onclick="this.closest('.po-line').remove();calcPOTotal()">✕</button></div>`;
+  container.appendChild(line);
+}
+
+function calcPOLine(input) {
+  const line = input.closest('.po-line');
+  if (!line) return;
+  const inputs = line.querySelectorAll('input[type=number]');
+  const qty = parseFloat(inputs[0]?.value) || 0;
+  const cost = parseFloat(inputs[1]?.value) || 0;
+  const total = qty * cost;
+  const totalEl = line.querySelector('input[readonly]');
+  if (totalEl) totalEl.value = '₦' + total.toLocaleString('en-NG', {minimumFractionDigits:2});
+  calcPOTotal();
+}
+
+function calcPOTotal() {
+  const lines = document.querySelectorAll('.po-line');
+  let grand = 0;
+  lines.forEach(line => {
+    const totalEl = line.querySelector('input[readonly]');
+    if (totalEl) {
+      const v = parseFloat(totalEl.value.replace(/[₦,]/g, '')) || 0;
+      grand += v;
+    }
+  });
+  const grandEl = document.getElementById('po-grand-total');
+  if (grandEl) grandEl.textContent = '₦' + grand.toLocaleString('en-NG', {minimumFractionDigits:2});
+}
+
+
+// ── CRM SUBSCRIPTION TOGGLE (billing settings) ───────────────────────────────
+function toggleCRM(cb){
+  const block=document.getElementById('crm-tier-block');
+  if(block)block.style.display=cb.checked?'':'none';
+}
+function updateCRMPrice(sel){
+  const val=sel.value;
+  const seatsRow=document.getElementById('crm-seats-row');
+  const priceDiv=document.getElementById('crm-price-display');
+  if(!val){if(seatsRow)seatsRow.style.display='none';if(priceDiv)priceDiv.style.display='none';return;}
+  const is360=val.startsWith('360');
+  if(seatsRow)seatsRow.style.display=is360?'none':'';
+  if(priceDiv){
+    priceDiv.style.display='';
+    if(is360){
+      priceDiv.textContent='Sartor CRM 360 — ₦740,000/month flat · Unlimited users · Annual lump sum ₦3,600,000 (20% off)';
+    } else {
+      const rate=val.split('|')[1];
+      priceDiv.textContent='₦'+parseInt(rate).toLocaleString()+'/revenue seat/month · Annual 20% off';
+    }
+  }
+}
+
+// ── CHANGE PLAN: smart seat calculator ───────────────────────────────────────
+let selectedPlanCard = null;
+let planBilling = 'monthly';
+
+function planBillingChange(radio) {
+  planBilling = radio.value;
+  const isMo = planBilling === 'monthly';
+  document.querySelectorAll('.plan-price-mo').forEach(el => el.style.display = isMo ? '' : 'none');
+  document.querySelectorAll('.plan-price-ann').forEach(el => el.style.display = isMo ? 'none' : '');
+  recalcPlan();
+}
+
+function selectNewPlan(el) {
+  document.querySelectorAll('.plan-card').forEach(c => {
+    c.style.outline = 'none';
+    c.style.boxShadow = 'none';
+  });
+  el.style.outline = '2px solid var(--N)';
+  selectedPlanCard = el;
+  const tier = el.dataset.tier;
+  const isDepot = tier === 'snp';
+  const is360 = tier === '360';
+  // CRM 360 is a flat fee — no seat configuration
+  if (is360) {
+    document.getElementById('plan-seat-config').style.display = 'none';
+    document.getElementById('btn-confirm-plan-change').disabled = false;
+    recalcPlan();
+    return;
+  }
+  const minSeats = parseInt(el.dataset.min) || 3;
+  document.getElementById('plan-seat-config').style.display = '';
+  const revInput = document.getElementById('plan-rev-seats');
+  revInput.min = minSeats;
+  revInput.value = Math.max(parseInt(revInput.value) || minSeats, minSeats);
+  const opGroup = document.getElementById('plan-op-seat-group');
+  opGroup.style.display = isDepot ? '' : 'none';
+  const hint = document.getElementById('plan-rev-hint');
+  if (hint) hint.textContent = 'Min ' + minSeats + ' revenue seats';
+  document.getElementById('btn-confirm-plan-change').disabled = false;
+  recalcPlan();
+}
+
+function adjustSeats(type, delta) {
+  const id = type === 'rev' ? 'plan-rev-seats' : 'plan-op-seats';
+  const input = document.getElementById(id);
+  if (!input) return;
+  const min = parseInt(input.min) || 0;
+  const newVal = Math.max(min, (parseInt(input.value) || min) + delta);
+  input.value = newVal;
+  recalcPlan();
+}
+
+function recalcPlan() {
+  if (!selectedPlanCard) return;
+  const isMo = planBilling === 'monthly';
+  const naira = '\u20a6';
+  const fmt = n => naira + n.toLocaleString();
+  const suffix = isMo ? '/mo' : ' (annual)';
+  // CRM 360 — flat fee, no seats
+  if (selectedPlanCard.dataset.tier === '360') {
+    const flat = isMo ? parseInt(selectedPlanCard.dataset.flatMo) : parseInt(selectedPlanCard.dataset.flatAnn);
+    let rows360 = '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.7)"><span>SC + DORA AI deployment</span><span style="font-family:\'DM Mono\',monospace;font-weight:600">' + fmt(flat/2) + suffix + '</span></div>';
+    rows360 += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.7)"><span>CRM 360 \u00b7 Unlimited users</span><span style="font-family:\'DM Mono\',monospace;font-weight:600">' + fmt(flat/2) + suffix + '</span></div>';
+    if (!isMo) rows360 += '<div style="font-size:10px;color:rgba(255,255,255,.5);padding:4px 0">20% annual discount applied</div>';
+    document.getElementById('plan-price-rows').innerHTML = rows360;
+    document.getElementById('plan-total').innerHTML = fmt(flat) + suffix;
+    document.getElementById('plan-total-label').textContent = isMo ? 'Monthly Total' : 'Annual Lump Sum';
+    return;
+  }
+  const revRate = isMo ? parseInt(selectedPlanCard.dataset.rateMo) : parseInt(selectedPlanCard.dataset.rateAnn);
+  const opRateMoStr = selectedPlanCard.dataset.opRateMo;
+  const opRateAnnStr = selectedPlanCard.dataset.opRateAnn;
+  const opRate = isMo ? parseInt(opRateMoStr || 0) : parseInt(opRateAnnStr || 0);
+  const revSeats = parseInt(document.getElementById('plan-rev-seats').value) || 0;
+  const opInput = document.getElementById('plan-op-seats');
+  const opSeats = opInput ? parseInt(opInput.value) || 0 : 0;
+  const revTotal = revRate * revSeats;
+  const opTotal = opRate * opSeats;
+  const grandTotal = revTotal + opTotal;
+  let rows = '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.7)"><span>Revenue seats (' + revSeats + ' \u00d7 ' + fmt(revRate) + ')</span><span style="font-family:\'DM Mono\',monospace;font-weight:600">' + fmt(revTotal) + suffix + '</span></div>';
+  if (opSeats > 0) {
+    rows += '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px;color:rgba(255,255,255,.7)"><span>Operational seats (' + opSeats + ' \u00d7 ' + fmt(opRate) + ')</span><span style="font-family:\'DM Mono\',monospace;font-weight:600">' + fmt(opTotal) + suffix + '</span></div>';
+  }
+  if (!isMo) {
+    rows += '<div style="font-size:10px;color:rgba(255,255,255,.5);padding:4px 0">20% annual discount applied</div>';
+  }
+  document.getElementById('plan-price-rows').innerHTML = rows;
+  document.getElementById('plan-total').innerHTML = fmt(grandTotal) + suffix;
+  document.getElementById('plan-total-label').textContent = isMo ? 'Monthly Total' : 'Annual Lump Sum';
+}
+
+function confirmPlanChange() {
+  if (!selectedPlanCard) return;
+  var tier = selectedPlanCard.dataset.tier;
+  var isMo = planBilling === 'monthly';
+  var revSeats = parseInt(document.getElementById('plan-rev-seats').value) || 0;
+  var opInput = document.getElementById('plan-op-seats');
+  var opSeats = opInput ? parseInt(opInput.value) || 0 : 0;
+  var revRate = isMo ? parseInt(selectedPlanCard.dataset.rateMo) : parseInt(selectedPlanCard.dataset.rateAnn);
+  var opRate = isMo ? parseInt(selectedPlanCard.dataset.opRateMo || 0) : parseInt(selectedPlanCard.dataset.opRateAnn || 0);
+  var tierName = tier === 'sn' ? 'Sartor CRM Field' : (tier === 'snp' ? 'Sartor CRM Depot' : 'Sartor CRM 360');
+  var cycleLabel = isMo ? 'Monthly' : 'Annual (20% off)';
+  var lines = [], total = 0;
+  if (tier === '360') {
+    if (isMo) {
+      lines.push({label:'SC + DORA AI deployment (Year 1, monthly)', amount:375000});
+      lines.push({label:'CRM 360 subscription \u00b7 Unlimited users (monthly)', amount:375000});
+      total = 750000;
+    } else {
+      lines.push({label:'SC + DORA AI deployment (annual, 20% off)', amount:3600000});
+      lines.push({label:'CRM 360 subscription \u00b7 Unlimited users (annual)', amount:3600000});
+      total = 7200000;
+    }
+  } else {
+    var rev = revRate * revSeats * (isMo ? 1 : 12);
+    lines.push({label:tierName + ' \u2014 ' + revSeats + ' revenue seats (' + cycleLabel + ')', amount:rev});
+    total += rev;
+    if (opSeats > 0 && opRate) {
+      var op = opRate * opSeats * (isMo ? 1 : 12);
+      lines.push({label:tierName + ' \u2014 ' + opSeats + ' operational seats (' + cycleLabel + ')', amount:op});
+      total += op;
+    }
+  }
+  var invNo = 'SAR-INV-2026-' + (120 + Math.floor(Math.random()*60));
+  var inv = { no:invNo, date:new Date().toLocaleDateString('en-NG',{year:'numeric',month:'long',day:'numeric'}), desc:tierName + ' \u2014 plan change', amount:total, status:'Due', due:'On receipt', lines:lines };
+  if (typeof switchTier === 'function') switchTier(tier);
+  if (typeof BILLING_STATE !== 'undefined') BILLING_STATE.cycle = isMo ? 'monthly' : 'annual';
+  if (typeof renderBilling === 'function') renderBilling();
+  closeM('modal-change-plan');
+  showToast('Plan change invoice generated for ' + tierName + '. Pay to activate.', 'ok');
+  viewSartorInvoice(JSON.stringify(inv));
+}
+
+function convBillingChange(radio) {
+  const isAnnual = radio.value === 'annual';
+  const naira = '₦';
+  const feeEl = document.getElementById('conv-sc-fee');
+  const totalEl = document.getElementById('conv-total');
+  const labelEl = document.getElementById('conv-total-label');
+  const btnEl = document.getElementById('btn-conv-pay');
+  if (isAnnual) {
+    if (feeEl) feeEl.textContent = naira + '800,000 lump sum (20% off)';
+    if (totalEl) totalEl.innerHTML = naira + '800,000 + ' + naira + '3,600,000 annual';
+    if (labelEl) labelEl.textContent = 'Year 1 annual total (after pilot)';
+    if (btnEl) btnEl.innerHTML = 'Pay ' + naira + '800,000 — Convert Now →';
+  } else {
+    if (feeEl) feeEl.textContent = naira + '83,333/mo';
+    if (totalEl) totalEl.textContent = naira + '458,333/mo';
+    if (labelEl) labelEl.textContent = 'Ongoing monthly (from now)';
+    if (btnEl) btnEl.innerHTML = 'Pay ' + naira + '83,333 — Convert Now →';
+  }
+}
+
+function goToSettings(panel) {
+  goPage('page-settings', 'Settings');
+  setTimeout(function() {
+    const tab = document.querySelector('[data-panel="' + panel + '"]');
+    if (tab) tab.click();
+  }, 80);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// SUBSCRIPTION & BILLING (tier-aware) + INVOICES DUE TO SARTOR
+// ══════════════════════════════════════════════════════════════
+var BILLING_STATE = { cycle:'monthly' }; // 'monthly' | 'annual'
+
+var PLAN_DEFS = {
+  sn:  { name:'Sartor CRM Field', tier:'T1', tagline:'Per revenue seat \u00b7 Pipeline, Customers, LPOs & Invoices',
+         revRate:15000, revRateAnnual:12000, opRate:0, minRev:3, minOp:0, hasAuth:false, unlimited:false },
+  snp: { name:'Sartor CRM Depot', tier:'T2', tagline:'Revenue + operational seats \u00b7 Warehouses, Drivers, GRN',
+         revRate:22000, revRateAnnual:17600, opRate:8000, opRateAnnual:6400, minRev:5, minOp:0, hasAuth:false, unlimited:false },
+  '360': { name:'Sartor CRM 360', tier:'T3', tagline:'Flat fee \u00b7 Unlimited users \u00b7 Sartor-Chain + DORA AI',
+         flatMonthly:750000, flatAnnual:7200000, hasAuth:true, unlimited:true }
+};
+
+// Current seat usage (from team) — counted live in production; sample here
+var SEAT_USAGE = { rev:6, op:2 };
+
+function planMonthly(tierKey){
+  var d=PLAN_DEFS[tierKey];
+  if(d.unlimited) return d.flatMonthly;
+  var rev=Math.max(d.minRev, SEAT_USAGE.rev)*d.revRate;
+  var op=d.opRate?Math.max(d.minOp, SEAT_USAGE.op)*d.opRate:0;
+  return rev+op;
+}
+function planAnnual(tierKey){
+  var d=PLAN_DEFS[tierKey];
+  if(d.unlimited) return d.flatAnnual;
+  var rev=Math.max(d.minRev, SEAT_USAGE.rev)*d.revRateAnnual*12;
+  var op=d.opRateAnnual?Math.max(d.minOp, SEAT_USAGE.op)*d.opRateAnnual*12:0;
+  return rev+op;
+}
+function naira(n){ return '\u20a6'+Number(n).toLocaleString(); }
+
+function renderBilling(){
+  var d=PLAN_DEFS[TIER]; if(!d) return;
+  var cycle=BILLING_STATE.cycle;
+  var monthly=planMonthly(TIER), annual=planAnnual(TIER);
+  // Header label
+  var planNameEl=document.getElementById('bl-plan-name');
+  if(planNameEl) planNameEl.textContent=d.name;
+  var planTagEl=document.getElementById('bl-plan-tag');
+  if(planTagEl) planTagEl.textContent=d.tagline;
+  var cycleLabelEl=document.getElementById('bl-cycle-label');
+  if(cycleLabelEl) cycleLabelEl.textContent=(cycle==='annual'?'Annual Billing':'Monthly Billing');
+  // Headline amount
+  var amtEl=document.getElementById('bl-amount');
+  var amtSubEl=document.getElementById('bl-amount-sub');
+  var amtLblEl=document.getElementById('bl-amount-lbl');
+  if(cycle==='annual'){
+    if(amtLblEl) amtLblEl.textContent='Annual Lump Sum (20% off)';
+    if(amtEl) amtEl.textContent=naira(annual);
+    if(amtSubEl) amtSubEl.textContent= d.unlimited?'\u20a6'+(annual/12).toLocaleString()+'/mo equivalent':'20% saving vs monthly';
+  } else {
+    if(amtLblEl) amtLblEl.textContent='Monthly Total'+(d.hasAuth?' (Year 1)':'');
+    if(amtEl) amtEl.textContent=naira(monthly)+'/mo';
+    if(amtSubEl) amtSubEl.textContent= d.unlimited?'No discount on monthly':(Math.max(d.minRev,SEAT_USAGE.rev))+' rev'+(d.opRate?' + '+Math.max(d.minOp,SEAT_USAGE.op)+' op':'')+' seats';
+  }
+  // Breakdown box — only meaningful for 360 (auth + crm); for Field/Depot show seat math
+  var bd=document.getElementById('bl-breakdown');
+  if(bd){
+    if(d.unlimited){
+      if(cycle==='annual'){
+        bd.innerHTML = brow('SC + DORA AI deployment (annual, 20% off)', naira(3600000)) +
+          brow('CRM 360 subscription \u00b7 Unlimited users (annual)', naira(3600000)) +
+          btotal('Annual total', naira(7200000)) +
+          bnote('From Year 2: SC+DORA fee drops \u00b7 CRM \u20a63,600,000/yr continues \u00b7 SKU licences commence');
+      } else {
+        bd.innerHTML = brow('SC + DORA AI deployment (\u20a64,500,000 \u00f7 12)', naira(375000)+'/mo') +
+          brow('CRM 360 subscription \u00b7 Unlimited users', naira(375000)+'/mo') +
+          btotal('Monthly total', naira(750000)+'/mo') +
+          bnote('From Month 13: SC+DORA fee drops \u00b7 CRM \u20a6375,000/mo continues \u00b7 SKU licences commence');
+      }
+    } else {
+      var rev=Math.max(d.minRev,SEAT_USAGE.rev), op=Math.max(d.minOp,SEAT_USAGE.op);
+      var rRate=cycle==='annual'?d.revRateAnnual:d.revRate;
+      var oRate=cycle==='annual'?(d.opRateAnnual||0):(d.opRate||0);
+      var rows=brow(rev+' revenue seats \u00d7 '+naira(rRate)+(cycle==='annual'?'/seat/yr':'/seat/mo'), naira(rev*rRate*(cycle==='annual'?12:1)));
+      if(d.opRate) rows+=brow(op+' operational seats \u00d7 '+naira(oRate)+(cycle==='annual'?'/seat/yr':'/seat/mo'), naira(op*oRate*(cycle==='annual'?12:1)));
+      rows+=btotal(cycle==='annual'?'Annual total':'Monthly total', cycle==='annual'?naira(annual):naira(monthly)+'/mo');
+      rows+=bnote('Standalone CRM \u00b7 No Sartor-Chain / DORA AI \u00b7 Min '+d.minRev+' revenue seats');
+      bd.innerHTML=rows;
+    }
+  }
+  // Cycle toggle button label
+  var cycBtn=document.getElementById('bl-cycle-btn');
+  if(cycBtn) cycBtn.textContent = cycle==='annual'?'Switch to Monthly':'Switch to Annual (Save 20%)';
+  // Renewal strip
+  var rAmt=document.getElementById('bl-renew-amount');
+  if(rAmt) rAmt.textContent = cycle==='annual'?naira(annual):naira(monthly);
+  var rCyc=document.getElementById('bl-renew-cycle');
+  if(rCyc) rCyc.textContent = cycle==='annual'?'Annual':'Monthly';
+  // Plan comparison "Current" badge
+  ['sn','snp','360'].forEach(function(k){
+    var badge=document.getElementById('bl-current-'+k);
+    if(badge) badge.style.display = (k===TIER)?'':'none';
+  });
+  // Auth-only note (sticker/SKU) visibility handled elsewhere
+  renderSartorInvoices();
+}
+
+function brow(label,val){ return '<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.1);font-size:12px"><span style="color:rgba(255,255,255,.7)">'+label+'</span><span style="font-family:\'DM Mono\',monospace;font-weight:600">'+val+'</span></div>'; }
+function btotal(label,val){ return '<div style="display:flex;justify-content:space-between;padding:5px 0;font-size:13px;font-weight:700"><span>'+label+'</span><span style="font-family:\'DM Mono\',monospace;color:var(--G)">'+val+'</span></div>'; }
+function bnote(t){ return '<div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:4px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1)">'+t+'</div>'; }
+
+function toggleBillingCycle(){
+  BILLING_STATE.cycle = (BILLING_STATE.cycle==='annual')?'monthly':'annual';
+  renderBilling();
+  showToast('Billing cycle set to '+(BILLING_STATE.cycle==='annual'?'Annual (20% off) \u2014 effective next renewal':'Monthly')+'.', 'ok');
+}
+
+// ── INVOICES DUE TO SARTOR LIMITED (what the client owes Sartor) ──
+function sartorInvoices(){
+  var d=PLAN_DEFS[TIER];
+  var cyc=BILLING_STATE.cycle;
+  var amt = cyc==='annual'?planAnnual(TIER):planMonthly(TIER);
+  var period = cyc==='annual'?'Annual':'Monthly';
+  var list=[
+    {no:'SAR-INV-2026-118', date:'May 1, 2026', desc:d.name+' \u2014 '+period+' subscription', amount:amt, status:'Due', due:'19 days'},
+    {no:'SAR-INV-2026-094', date:'Apr 1, 2026', desc:d.name+' \u2014 '+period+' subscription', amount:amt, status:'Paid', due:'\u2014'}
+  ];
+  if(d.hasAuth){
+    list.push({no:'SAR-INV-2026-061', date:'Jan 15, 2026', desc:'SC + DORA AI \u2014 Full Deployment Onboarding (Year 1)', amount:4500000, status:'Paid', due:'\u2014'});
+  }
+  return list;
+}
+function renderSartorInvoices(){
+  var tb=document.getElementById('bl-sartor-inv-body');
+  if(!tb) return;
+  var invs=sartorInvoices();
+  tb.innerHTML = invs.map(function(iv){
+    var badge = iv.status==='Paid'?'bg':(iv.status==='Due'?'ba':'br');
+    var viewBtn = '<button class="btn bsec bsm" onclick="viewSartorInvoice(\''+encodeURIComponent(JSON.stringify(iv))+'\')">View</button>';
+    var actBtn = iv.status==='Paid'
+      ? '<button class="btn bsec bsm" onclick="showToast(\'Downloading receipt PDF...\',\'ok\')">Receipt</button>'
+      : '<button class="btn bgrn bsm" onclick="payInvoiceByNo(\''+iv.no+'\')">Pay</button>';
+    return '<tr><td data-label="Invoice" style="font-family:\'DM Mono\',monospace;font-size:11px">'+iv.no+'</td>'+
+      '<td data-label="Date" style="font-size:12px">'+iv.date+'</td>'+
+      '<td data-label="Description" style="font-size:12px">'+iv.desc+'</td>'+
+      '<td data-label="Amount" style="font-family:\'DM Mono\',monospace;font-weight:600">'+naira(iv.amount)+'</td>'+
+      '<td data-label="Due In" style="font-size:12px">'+iv.due+'</td>'+
+      '<td data-label="Status"><span class="badge '+badge+'">'+iv.status+'</span></td>'+
+      '<td data-label="Actions"><div style="display:flex;gap:5px;flex-wrap:wrap">'+viewBtn+actBtn+'</div></td></tr>';
+  }).join('');
+}
+
+
+// ── STAFF SEAT ENFORCEMENT BY TIER ──
+// Field (sn): min 3 revenue seats, per-seat billed. Depot (snp): min 5, rev+op. 360: unlimited.
+function tierSeatInfo(){
+  var d=PLAN_DEFS[TIER];
+  var used = SEAT_USAGE.rev + SEAT_USAGE.op;
+  if(d.unlimited) return { name:d.name, used:used, allowance:Infinity, label:'Unlimited', atLimit:false };
+  // For per-seat tiers, "allowance" is what they're paying for; adding staff adds a seat (and cost).
+  // We treat the current paid seat count as the soft allowance; going above prompts add-seat/upgrade.
+  var paidSeats = Math.max(d.minRev, SEAT_USAGE.rev) + (d.opRate?Math.max(d.minOp, SEAT_USAGE.op):0);
+  return { name:d.name, used:used, allowance:paidSeats, label:paidSeats+' paid seats', atLimit: used>=paidSeats };
+}
+function renderSeatUsage(){
+  var info=tierSeatInfo();
+  var nm=document.getElementById('seat-plan-name'); if(nm) nm.textContent=info.name;
+  var u=document.getElementById('seat-used'); if(u) u.textContent=info.used;
+  var a=document.getElementById('seat-allow'); if(a) a.textContent=info.label;
+  var w=document.getElementById('seat-warn'); if(w) w.style.display=info.atLimit?'':'none';
+}
+function openInviteUser(){
+  var info=tierSeatInfo();
+  if(info.atLimit && TIER!=='360'){
+    showToast('Seat limit reached on '+info.name+'. Adding a user adds a billable seat at your next renewal \u2014 or upgrade to CRM 360 for unlimited users.','warn');
+  }
+  openM('modal-invite-user');
+}
+function submitInvite(){
+  var d=PLAN_DEFS[TIER];
+  closeM && closeM('modal-invite-user');
+  if(d.unlimited){
+    showToast('Invitation sent. CRM 360 includes unlimited users \u2014 no additional charge.','ok');
+  } else {
+    SEAT_USAGE.rev += 1; // new user occupies a seat (revenue by default)
+    renderSeatUsage();
+    if(typeof renderBilling==='function') renderBilling();
+    showToast('Invitation sent. A new seat has been added to your '+d.name+' plan \u2014 reflected on your next invoice.','ok');
+  }
+}
+
+
+// ══════════════════════════════════════════════════════════════
+// SARTOR INVOICE VIEW + PAYSTACK GATEWAY
+// ══════════════════════════════════════════════════════════════
+var SARTOR_INV_CURRENT = null;
+
+function viewSartorInvoice(invArg){
+  var iv;
+  try { iv = (typeof invArg==='string') ? JSON.parse(decodeURIComponent(invArg)) : invArg; }
+  catch(e){ iv = (typeof invArg==='string') ? JSON.parse(invArg) : invArg; }
+  SARTOR_INV_CURRENT = iv;
+  document.getElementById('si-inv-title').textContent = 'Invoice ' + iv.no;
+  document.getElementById('si-inv-sub').textContent = iv.desc + ' \u00b7 Payable to Sartor Limited';
+  document.getElementById('si-inv-no').textContent = iv.no;
+  document.getElementById('si-inv-date').textContent = iv.date;
+  var bn=document.getElementById('si-inv-status-banner');
+  if(iv.status==='Paid'){ bn.style.display=''; bn.style.background='var(--Gb)'; bn.style.color='var(--Gd)'; bn.innerHTML='\u2713 Paid \u00b7 This invoice has been settled.'; }
+  else if(iv.status==='Due'){ bn.style.display=''; bn.style.background='var(--ab)'; bn.style.color='var(--at)'; bn.innerHTML='\u26a0 Payment due'+(iv.due&&iv.due!=='\u2014'?' \u00b7 '+iv.due:'')+'. Pay now to keep your subscription active.'; }
+  else { bn.style.display='none'; }
+  var lines = iv.lines || [{label:iv.desc, amount:iv.amount}];
+  document.getElementById('si-inv-rows').innerHTML = lines.map(function(l){
+    return '<div style="padding:9px 13px;display:grid;grid-template-columns:1fr auto;gap:10px;font-size:12px;border-bottom:1px solid var(--brd)"><span style="color:var(--tx2)">'+l.label+'</span><span style="font-family:\'DM Mono\',monospace;font-weight:600">'+naira(l.amount)+'</span></div>';
+  }).join('');
+  document.getElementById('si-inv-total').textContent = naira(iv.amount);
+  var payBtn=document.getElementById('si-pay-btn');
+  if(payBtn) payBtn.style.display = (iv.status==='Paid')?'none':'';
+  openM('modal-sartor-invoice');
+}
+
+function payInvoiceByNo(no){
+  var iv = sartorInvoices().filter(function(x){return x.no===no;})[0];
+  if(iv){ SARTOR_INV_CURRENT = iv; viewSartorInvoice(JSON.stringify(iv)); }
+}
+
+function paySartorInvoice(){
+  if(!SARTOR_INV_CURRENT) return;
+  closeM('modal-sartor-invoice');
+  var iv=SARTOR_INV_CURRENT;
+  var amtEl=document.getElementById('pgw-amount'); if(amtEl) amtEl.textContent=naira(iv.amount);
+  var descEl=document.getElementById('pgw-desc'); if(descEl) descEl.textContent=iv.desc;
+  var refEl=document.getElementById('pgw-ref'); if(refEl) refEl.textContent='Ref: '+iv.no;
+  var btn=document.getElementById('pgw-pay-btn'); if(btn) btn.textContent='Pay '+naira(iv.amount)+' Now';
+  openM('modal-payment-gateway');
+}
+
+function completePaystackPayment(){
+  closeM('modal-payment-gateway');
+  var amt = SARTOR_INV_CURRENT ? naira(SARTOR_INV_CURRENT.amount) : '';
+  if(SARTOR_INV_CURRENT){ SARTOR_INV_CURRENT.status='Paid'; }
+  if(typeof renderBilling==='function') renderBilling();
+  showToast('Payment of '+amt+' processed successfully. Receipt emailed to your billing contact. Your subscription is now active.', 'ok');
+}
+
+function downloadSartorInvoice(){ showToast('Generating invoice PDF... Download will start shortly.', 'ok'); }
+
+
+// Open Change Plan with tier-aware header, warning, and current-tier disabling
+function openChangePlan(){
+  var labels={sn:'Sartor CRM Field',snp:'Sartor CRM Depot','360':'Sartor CRM 360'};
+  var subs={sn:'Per revenue seat \u00b7 Standalone CRM',snp:'Revenue + operational seats','360':'Unlimited users \u00b7 Flat fee \u00b7 Sartor-Chain + DORA AI'};
+  var cur=document.getElementById('cp-current-text');
+  if(cur) cur.innerHTML='Current: '+labels[TIER]+' &middot; '+subs[TIER];
+  // Downgrade warning only relevant when on 360 (losing auth on downgrade)
+  var warn=document.getElementById('cp-warning');
+  if(warn) warn.style.display=(TIER==='360')?'':'none';
+  // Mark / disable the current tier card; reset others
+  document.querySelectorAll('#modal-change-plan .plan-card').forEach(function(c){
+    c.style.outline='none'; c.style.opacity=''; c.style.pointerEvents=''; 
+    var existing=c.querySelector('.cp-current-tag'); if(existing) existing.remove();
+    if(c.dataset.tier===TIER){
+      c.style.opacity='.55'; c.style.pointerEvents='none';
+      var tag=document.createElement('div');
+      tag.className='cp-current-tag';
+      tag.textContent='CURRENT PLAN';
+      tag.style.cssText='font-size:9px;font-weight:800;color:var(--G);text-transform:uppercase;letter-spacing:.4px;margin-top:6px';
+      c.appendChild(tag);
+    }
+  });
+  selectedPlanCard=null;
+  var seatCfg=document.getElementById('plan-seat-config'); if(seatCfg) seatCfg.style.display='none';
+  var cbtn=document.getElementById('btn-confirm-plan-change'); if(cbtn) cbtn.disabled=true;
+  openM('modal-change-plan');
+}
 </script>
+
+<!-- SARTOR SUBSCRIPTION INVOICE MODAL -->
+<div class="modal-bg" id="modal-sartor-invoice"><div class="modal" style="max-width:520px">
+  <div class="mh"><div><div class="mh-t" id="si-inv-title">Invoice</div><div class="mh-sub" id="si-inv-sub">Payable to Sartor Limited</div></div><button class="mx" onclick="closeM('modal-sartor-invoice')">&times;</button></div>
+  <div class="mb" style="max-height:62vh;overflow-y:auto">
+    <div id="si-inv-status-banner" style="display:none;border-radius:8px;padding:10px 13px;font-size:12px;font-weight:600;margin-bottom:14px"></div>
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px">From</div>
+        <div style="font-size:13px;font-weight:700;color:var(--N)">Sartor Limited</div>
+        <div style="font-size:11px;color:var(--tx3)">RC 1845734 &middot; Abuja, FCT</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px">Invoice</div>
+        <div style="font-family:'DM Mono',monospace;font-size:13px;font-weight:700;color:var(--N)" id="si-inv-no">&mdash;</div>
+        <div style="font-size:11px;color:var(--tx3)" id="si-inv-date">&mdash;</div>
+      </div>
+    </div>
+    <div style="border:1px solid var(--brd);border-radius:9px;overflow:hidden;margin-bottom:14px">
+      <div style="background:var(--bg);padding:8px 13px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;display:grid;grid-template-columns:1fr auto;gap:10px"><span>Description</span><span>Amount</span></div>
+      <div id="si-inv-rows"></div>
+      <div style="padding:11px 13px;display:grid;grid-template-columns:1fr auto;gap:10px;font-size:14px;font-weight:800;border-top:2px solid var(--brd);background:var(--bg)"><span>Total Due</span><span style="font-family:'DM Mono',monospace;color:var(--N)" id="si-inv-total">&mdash;</span></div>
+    </div>
+    <div style="font-size:11px;color:var(--tx3);line-height:1.6">Payment is processed securely via Sartor&rsquo;s payment gateway (Paystack). Your subscription updates automatically once payment is confirmed.</div>
+  </div>
+  <div class="mf">
+    <button class="btn bsec" onclick="downloadSartorInvoice()">&#128196; Download PDF</button>
+    <button class="btn bgrn" id="si-pay-btn" onclick="paySartorInvoice()">&#128179; Pay Now &rarr;</button>
+  </div>
+</div></div>
+
 </body>
 </html>

@@ -26,3 +26,4 @@ export { default as GrnLogPage } from './GrnLogPage';
 export { default as ReorderAlertsPage } from './ReorderAlertsPage';
 export { default as ReconciliationPage } from './ReconciliationPage';
 export { default as SuppliersPage } from './SuppliersPage';
+export { default as StickerOrdersPage } from './StickerOrdersPage';

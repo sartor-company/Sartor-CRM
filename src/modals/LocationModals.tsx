@@ -6,8 +6,9 @@ import { Button } from '../components/ui/Button';
 import { IconLabel } from '../components/ui/Icon';
 import { NavButton } from '../components/ui/NavButton';
 import { SartorModal } from '../components/ui/SartorModal';
-import { LOC_DEFAULT, SAMPLE_COORDS, useLocation } from '../context/LocationContext';
+import { LOC_DEFAULT, useLocation } from '../context/LocationContext';
 import { useRoleGates } from '../hooks/useRoleGates';
+import type { LocationPin } from '../types';
 import { useModalActions } from './helpers';
 
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png';
@@ -91,7 +92,7 @@ export function LocationModals() {
     viewPin ??
     (viewContext ? pins[viewContext] : null) ??
     (pickerContext ? pins[pickerContext] : null) ??
-    SAMPLE_COORDS.lead;
+    ({ lat: LOC_DEFAULT.lat, lng: LOC_DEFAULT.lng, label: 'Map center' } satisfies LocationPin);
 
   useEffect(() => {
     if (isOpen('location-picker')) {
@@ -108,8 +109,9 @@ export function LocationModals() {
 
   useEffect(() => {
     if (isOpen('location-view') && viewContext) {
-      const pin = pins[viewContext] ?? SAMPLE_COORDS[viewContext];
+      const pin = pins[viewContext];
       if (pin) setViewPin(pin);
+      else setViewPin(null);
     }
   }, [isOpen('location-view'), viewContext, pins, setViewPin]);
 
@@ -218,7 +220,7 @@ export function LocationModals() {
         <div style={{ marginTop: 8 }}>
           <input
             className="inp"
-            placeholder="Location label (e.g. FreshMart Garki — Entrance)"
+            placeholder="Location label (e.g. Store entrance)"
             style={{ fontSize: 12, padding: '7px 10px' }}
             value={addressLabel}
             onChange={(e) => setAddressLabel(e.target.value)}

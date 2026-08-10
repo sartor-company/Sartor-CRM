@@ -38,7 +38,8 @@ export type PageId =
   | 'reorder-alerts'
   | 'reconciliation'
   | 'suppliers'
-  | 'redeem-gift';
+  | 'redeem-gift'
+  | 'sticker-orders';
 
 export type ModalId =
   | 'add-lead'
@@ -88,7 +89,16 @@ export type ModalId =
   | 'qr-view'
   | 'qr-delivery-confirm'
   | 'location-picker'
-  | 'location-view';
+  | 'location-view'
+  | 'billing-cycle'
+  | 'change-plan'
+  | 'payment-gateway'
+  | 'sartor-invoice'
+  | 'pilot-convert'
+  | 'domain-upgrade'
+  | 'raise-po'
+  | 'wh-inventory'
+  | 'wh-staff';
 
 import type { IconName } from './icons';
 

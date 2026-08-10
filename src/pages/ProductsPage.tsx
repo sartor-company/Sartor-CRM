@@ -1,21 +1,58 @@
-import { ActionDropdown, Badge, Button, DataTable, KpiCard, KpiGrid, Mono, PageHead, RoleGate, SearchBar } from '../components/ui';
+import {
+  ActionDropdown,
+  Badge,
+  Button,
+  DataTable,
+  KpiCard,
+  KpiGrid,
+  Mono,
+  PageHead,
+  QueryState,
+  RoleGate,
+  SearchBar,
+} from '../components/ui';
+import { catalogApi } from '../api/catalog';
 import { useModal } from '../context/ModalContext';
-import { MOCK_PRODUCTS } from '../data/mock';
+import { useApiQuery } from '../hooks/useApiQuery';
 import { useRoleGates } from '../hooks/useRoleGates';
 import { useTableFilter } from '../hooks/useTableFilter';
-
-const PRODUCT_ROWS = [
-  { ...MOCK_PRODUCTS[0], brand: 'SartorShield', available: '2,340', committed: '120', price: '₦1,200', status: 'OK', statusVariant: 'green' as const },
-  { ...MOCK_PRODUCTS[1], brand: 'SartorShield', available: '380', committed: '60', price: '₦1,000', status: 'Low Stock', statusVariant: 'amber' as const },
-  { ...MOCK_PRODUCTS[2], brand: 'SartorShield', available: '85', committed: '0', price: '₦1,800', status: 'Critical', statusVariant: 'red' as const },
-];
+import { formatNaira } from '../utils/format';
+import { productStockVariant } from '../utils/statusBadges';
 
 export default function ProductsPage() {
   const { openModal } = useModal();
   const { showAddProduct, showProdEdit, showProdStock, showWhApprove, showCeoBatch } = useRoleGates();
-  const { search, setSearch, filtered } = useTableFilter(PRODUCT_ROWS, '', (row, q) =>
+  const { data: products = [], loading, error } = useApiQuery(() => catalogApi.listProducts(), []);
+
+  const rows = (products ?? []).map((p) => {
+    const qty = Number(p.totalQuantityAvailable ?? 0);
+    const status =
+      qty <= 0 || (p.status || '').toLowerCase().includes('out')
+        ? 'Out of Stock'
+        : qty < 100
+          ? 'Low Stock'
+          : p.status || 'In-Stock';
+    return {
+      id: p._id,
+      product: p,
+      sku: p.skuCode || p.productId || p.barcodeNumber || p._id.slice(-6),
+      name: p.productName || '—',
+      brand: p.manufacturer || '—',
+      category: p.productCategory || '—',
+      available: qty.toLocaleString(),
+      qty,
+      price: formatNaira(p.sellingPrice ?? p.price),
+      status,
+      statusVariant: productStockVariant(status, qty),
+    };
+  });
+
+  const { search, setSearch, filtered } = useTableFilter(rows, '', (row, q) =>
     [row.sku, row.name, row.brand, row.category].some((v) => v.toLowerCase().includes(q)),
   );
+
+  const low = rows.filter((r) => r.status === 'Low Stock').length;
+  const critical = rows.filter((r) => r.status === 'Out of Stock' || r.qty < 50).length;
 
   return (
     <>
@@ -38,63 +75,100 @@ export default function ProductsPage() {
       />
 
       <KpiGrid cols={3}>
-        <KpiCard label="Total SKUs" value="4" accent="green" />
-        <KpiCard label="Low Stock" value="2" accent="amber" />
-        <KpiCard label="Critical / Expiring" value="1" accent="red" />
+        <KpiCard label="Total SKUs" value={String(rows.length)} accent="green" />
+        <KpiCard label="Low Stock" value={String(low)} accent="amber" />
+        <KpiCard label="Critical / Out" value={String(critical)} accent="red" />
       </KpiGrid>
 
-      <DataTable id="prod-table">
-        <thead>
-          <tr>
-            <th>SKU</th>
-            <th>Product Name</th>
-            <th>Brand</th>
-            <th>Category</th>
-            <th>Available</th>
-            <th>Committed</th>
-            <th>Selling Price</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((p) => (
-            <tr key={p.sku}>
-              <td>
-                <Mono style={{ fontSize: 12 }}>{p.sku}</Mono>
-              </td>
-              <td>{p.name}</td>
-              <td>{p.brand}</td>
-              <td>{p.category}</td>
-              <td>
-                <Mono>{p.available}</Mono>
-              </td>
-              <td>
-                <Mono style={{ color: 'var(--at)' }}>{p.committed}</Mono>
-              </td>
-              <td>
-                <Mono>{p.price}</Mono>
-              </td>
-              <td>
-                <Badge variant={p.statusVariant}>{p.status}</Badge>
-              </td>
-              <td>
-                <ActionDropdown
-                  items={[
-                    { icon: 'eye', label: 'View Details & Batches', onClick: () => openModal('view-product') },
-                    { icon: 'pencil', label: 'Edit Product', onClick: () => openModal('edit-product'), hidden: !showProdEdit },
-                    { icon: 'clipboard', label: 'Receive Stock (GRN)', onClick: () => openModal('grn'), hidden: !showProdStock },
-                    { icon: 'trash', label: 'Write-off Expired / Damaged', onClick: () => openModal('stock-writeoff'), hidden: !showProdStock },
-                    { icon: 'ban', label: 'Quarantine Batch', onClick: () => openModal('quarantine-batch'), hidden: !showProdStock },
-                    { icon: 'wrench', label: 'Stock Adjustment (CEO)', onClick: () => openModal('stock-adjust'), hidden: !showCeoBatch },
-                    { icon: 'check', label: 'Approve Stock Update', onClick: () => openModal('approve-stock'), hidden: !showWhApprove },
-                  ]}
-                />
-              </td>
+      <QueryState
+        loading={loading}
+        error={error}
+        empty={!filtered.length}
+        emptyMessage="No products in the catalog yet."
+      >
+        <DataTable id="prod-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Product Name</th>
+              <th>Brand</th>
+              <th>Category</th>
+              <th>Available</th>
+              <th>Selling Price</th>
+              <th>Status</th>
+              <th>Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </DataTable>
+          </thead>
+          <tbody>
+            {filtered.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  <Mono style={{ fontSize: 12 }}>{p.sku}</Mono>
+                </td>
+                <td>{p.name}</td>
+                <td>{p.brand}</td>
+                <td>{p.category}</td>
+                <td>
+                  <Mono>{p.available}</Mono>
+                </td>
+                <td>
+                  <Mono>{p.price}</Mono>
+                </td>
+                <td>
+                  <Badge variant={p.statusVariant}>{p.status}</Badge>
+                </td>
+                <td>
+                  <ActionDropdown
+                    items={[
+                      {
+                        icon: 'eye',
+                        label: 'View Details & Batches',
+                        onClick: () => openModal('view-product', { product: p.product }),
+                      },
+                      {
+                        icon: 'pencil',
+                        label: 'Edit Product',
+                        onClick: () => openModal('edit-product', { product: p.product }),
+                        hidden: !showProdEdit,
+                      },
+                      {
+                        icon: 'clipboard',
+                        label: 'Receive Stock (GRN)',
+                        onClick: () => openModal('grn', { product: p.product }),
+                        hidden: !showProdStock,
+                      },
+                      {
+                        icon: 'trash',
+                        label: 'Write-off Expired / Damaged',
+                        onClick: () => openModal('stock-writeoff', { product: p.product }),
+                        hidden: !showProdStock,
+                      },
+                      {
+                        icon: 'ban',
+                        label: 'Quarantine Batch',
+                        onClick: () => openModal('quarantine-batch', { product: p.product }),
+                        hidden: !showProdStock,
+                      },
+                      {
+                        icon: 'wrench',
+                        label: 'Stock Adjustment (CEO)',
+                        onClick: () => openModal('stock-adjust', { product: p.product }),
+                        hidden: !showCeoBatch,
+                      },
+                      {
+                        icon: 'check',
+                        label: 'Approve Stock Update',
+                        onClick: () => openModal('approve-stock', { product: p.product }),
+                        hidden: !showWhApprove,
+                      },
+                    ]}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </DataTable>
+      </QueryState>
     </>
   );
 }

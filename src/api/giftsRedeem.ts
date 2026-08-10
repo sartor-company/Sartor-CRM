@@ -1,7 +1,9 @@
+import { useAuthStore } from '../store/authStore';
+
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
 
 function token(): string | null {
-  return localStorage.getItem('s-token') || localStorage.getItem('sartor_crm_token');
+  return useAuthStore.getState().token;
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -14,7 +16,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const res = await fetch(`${baseURL}${path}`, { ...init, headers });
   const json = (await res.json()) as { status: boolean; message: string; data: T };
-  if (!res.ok) throw new Error(json.message || `HTTP ${res.status}`);
+  if (!res.ok || json.status === false) throw new Error(json.message || `HTTP ${res.status}`);
   return json.data;
 }
 
@@ -68,7 +70,7 @@ export const giftsRedeemApi = {
       data: RedeemGiftResult;
     };
     if (!json?.data?.outcome) {
-      throw new Error(json?.message || 'Redeem failed — sign in / set s-token to call the API.');
+      throw new Error(json?.message || 'Redeem failed — sign in to call the API.');
     }
     return json.data;
   },

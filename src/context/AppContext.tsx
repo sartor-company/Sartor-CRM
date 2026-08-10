@@ -8,21 +8,21 @@ import {
 } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { SN_TIER_ROLES } from '../constants/roles';
-import { defaultPathForRole, pageToPath, pathToPageId } from '../constants/routes';
+import { pageToPath, pathToPageId } from '../constants/routes';
 import { getDefaultPageForRole, PAGE_TITLES } from '../constants/nav';
+import { useAuthStore } from '../store/authStore';
 import type { PageId, RoleId, TierId } from '../types';
-import { useToast } from './ToastContext';
 
 interface AppContextValue {
   role: RoleId;
   tier: TierId;
-  setRole: (role: RoleId) => void;
-  setTier: (tier: TierId) => void;
   pageTitle: string;
   sidebarOpen: boolean;
   openSidebar: () => void;
   closeSidebar: () => void;
   companyName: string;
+  displayName: string;
+  roleLabel: string;
   canShowSalesActions: boolean;
   isCeoAdmin: boolean;
   isMerch: boolean;
@@ -32,6 +32,7 @@ interface AppContextValue {
   isWH: boolean;
   isInv: boolean;
   navigateToPage: (pageId: PageId) => void;
+  logout: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -39,37 +40,18 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { showToast } = useToast();
-  const [role, setRoleState] = useState<RoleId>('ceo');
-  const [tier, setTierState] = useState<TierId>('360');
+  const user = useAuthStore((s) => s.user);
+  const clearAuth = useAuthStore((s) => s.logout);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const role: RoleId = user?.crmRole ?? 'ceo';
+  const tier: TierId = user?.tier ?? '360';
+  const companyName = user?.companyName || 'Company';
+  const displayName = user?.displayName || user?.email || 'User';
+  const roleLabel = user?.roleLabel || 'User';
 
   const pageId = pathToPageId(location.pathname) ?? getDefaultPageForRole(role);
   const pageTitle = PAGE_TITLES[pageId] ?? 'Dashboard';
-
-  const setRole = useCallback(
-    (next: RoleId) => {
-      setRoleState(next);
-      navigate(defaultPathForRole(next));
-      setSidebarOpen(false);
-    },
-    [navigate],
-  );
-
-  const setTier = useCallback(
-    (next: TierId) => {
-      if (next === 'sn' && ['inv', 'wh', 'driver'].includes(role)) {
-        showToast(
-          `${role} is not available on Sales Navigator. Switched to CEO.`,
-          'warn',
-        );
-        setRoleState('ceo');
-        navigate(defaultPathForRole('ceo'));
-      }
-      setTierState(next);
-    },
-    [role, navigate, showToast],
-  );
 
   const navigateToPage = useCallback(
     (id: PageId) => {
@@ -79,17 +61,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [navigate],
   );
 
+  const logout = useCallback(() => {
+    clearAuth();
+    navigate('/login', { replace: true });
+  }, [clearAuth, navigate]);
+
   const value = useMemo(
     () => ({
       role,
       tier,
-      setRole,
-      setTier,
       pageTitle,
       sidebarOpen,
       openSidebar: () => setSidebarOpen(true),
       closeSidebar: () => setSidebarOpen(false),
-      companyName: 'Sartor Health Company Ltd',
+      companyName,
+      displayName,
+      roleLabel,
       canShowSalesActions: ['ceo', 'admin', 'rep'].includes(role),
       isCeoAdmin: role === 'ceo' || role === 'admin',
       isMerch: role === 'merch',
@@ -99,8 +86,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isWH: role === 'wh',
       isInv: role === 'inv',
       navigateToPage,
+      logout,
     }),
-    [role, tier, setRole, setTier, pageTitle, sidebarOpen, navigateToPage],
+    [role, tier, pageTitle, sidebarOpen, companyName, displayName, roleLabel, navigateToPage, logout],
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

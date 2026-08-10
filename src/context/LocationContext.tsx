@@ -12,12 +12,6 @@ import { useApp } from './AppContext';
 
 export const LOC_DEFAULT = { lat: 9.0579, lng: 7.4951 };
 
-export const SAMPLE_COORDS: Partial<Record<LocCtx, LocationPin>> = {
-  lead: { lat: 9.0765, lng: 7.4893, label: 'Plot 14 Aminu Kano Crescent, Wuse II — Abuja' },
-  visit: { lat: 9.0368, lng: 7.4676, label: '31 Garki Market Rd, Garki II — Abuja' },
-  delivery: { lat: 9.03, lng: 7.46, label: '14 Adetokunbo Ademola Crescent, Wuse II' },
-};
-
 interface LocationContextValue {
   pins: Partial<Record<LocCtx, LocationPin>>;
   pickerLat: number;

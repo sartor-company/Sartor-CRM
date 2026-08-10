@@ -57,23 +57,29 @@ function useChart(
   }, [canvasRef, config]);
 }
 
-export function RevenueChart() {
+const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export function RevenueChart({ monthlyRevenue }: { monthlyRevenue?: number[] }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const now = new Date().getMonth();
+  const values =
+    monthlyRevenue && monthlyRevenue.length
+      ? monthlyRevenue.map((v) => (Number(v) || 0) / 1_000_000)
+      : [0, 0, 0, 0, 0, 0];
+  const labels = monthlyRevenue?.length
+    ? values.map((_, i) => MONTH_LABELS[(now - values.length + 1 + i + 12) % 12])
+    : MONTH_LABELS.slice(Math.max(0, now - 5), now + 1);
+
   useChart(ref, {
     type: 'bar',
     data: {
-      labels: ['Dec', 'Jan', 'Feb', 'Mar', 'Apr', 'May'],
+      labels,
       datasets: [
         {
-          data: [2.1, 2.8, 3.1, 2.9, 3.8, 4.2],
-          backgroundColor: [
-            'rgba(0,0,104,.1)',
-            'rgba(0,0,104,.1)',
-            'rgba(0,0,104,.1)',
-            'rgba(0,0,104,.1)',
-            'rgba(0,0,104,.14)',
-            '#000068',
-          ],
+          data: values,
+          backgroundColor: values.map((_, i) =>
+            i === values.length - 1 ? '#000068' : i === values.length - 2 ? 'rgba(0,0,104,.14)' : 'rgba(0,0,104,.1)',
+          ),
           borderRadius: 5,
           borderSkipped: false,
           borderWidth: 0,
@@ -101,15 +107,16 @@ export function RevenueChart() {
   return <canvas ref={ref} />;
 }
 
-export function AgingChart() {
+export function AgingChart({ counts }: { counts?: [number, number, number] }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const data = counts ?? [0, 0, 0];
   useChart(ref, {
     type: 'doughnut',
     data: {
       labels: ['Current', 'Due Soon', 'Overdue'],
       datasets: [
         {
-          data: [8, 4, 5],
+          data,
           backgroundColor: ['#00B341', '#F59E0B', '#EF4444'],
           borderWidth: 0,
           hoverOffset: 4,
@@ -130,15 +137,16 @@ export function AgingChart() {
   return <canvas ref={ref} />;
 }
 
-export function PipelineChart() {
+export function PipelineChart({ counts }: { counts?: number[] }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const data = counts ?? [0, 0, 0, 0, 0, 0];
   useChart(ref, {
     type: 'bar',
     data: {
-      labels: ['New', 'Contact', 'Qualify', 'Negot.', 'LPO', 'Customer'],
+      labels: ['Contact', 'Qualify', 'Interest', 'Negot.', 'LPO', 'Won'],
       datasets: [
         {
-          data: [4, 7, 5, 3, 6, 55],
+          data,
           backgroundColor: ['#000068', '#3B82F6', '#8B5CF6', '#F59E0B', '#00B341', '#00D44D'],
           borderRadius: 5,
           borderSkipped: false,
@@ -157,16 +165,26 @@ export function PipelineChart() {
   return <canvas ref={ref} />;
 }
 
-export function ReportRevenueChart() {
+export function ReportRevenueChart({
+  labels = [],
+  values = [],
+}: {
+  labels?: string[];
+  values?: number[];
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const chartLabels = labels.length ? labels : ['—'];
+  const chartValues = values.length ? values : [0];
   useChart(ref, {
     type: 'bar',
     data: {
-      labels: ['Samuel (Rep)', 'Abubakar (Admin)', 'Emmanuel (Rep)'],
+      labels: chartLabels,
       datasets: [
         {
-          data: [820000, 540000, 380000],
-          backgroundColor: ['#000068', '#3B82F6', '#8B5CF6'],
+          data: chartValues,
+          backgroundColor: chartValues.map((_, i) =>
+            i === 0 ? '#000068' : i === 1 ? '#3B82F6' : '#8B5CF6',
+          ),
           borderRadius: 6,
           borderSkipped: false,
           borderWidth: 0,

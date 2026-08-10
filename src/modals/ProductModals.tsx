@@ -1,15 +1,29 @@
 import { Button } from '../components/ui/Button';
-import { Icon } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { RoleGate } from '../components/ui/RoleGate';
+import type { ApiProduct } from '../api/catalog';
+import { useLiveOptions, productSku } from '../hooks/useLiveOptions';
 import { useRoleGates } from '../hooks/useRoleGates';
+import { formatNaira, num } from '../utils/format';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
 export function ProductModals() {
-  const { isOpen, closeModal, openModal, handleSubmit } = useModalActions();
+  const { isOpen, closeModal, openModal, getPayload, handleSubmit } = useModalActions();
   const { showAddProduct, showProdEdit, showProdStock } = useRoleGates();
+  const { warehouses } = useLiveOptions();
+
+  const viewProduct = getPayload<{ product?: ApiProduct }>('view-product')?.product;
+  const editProduct =
+    getPayload<{ product?: ApiProduct }>('edit-product')?.product ?? viewProduct;
+  const approveProduct = getPayload<{ product?: ApiProduct }>('approve-stock')?.product;
+
+  const viewSku = viewProduct ? productSku(viewProduct) : null;
+  const viewName = viewProduct?.productName || 'Select a product';
+  const viewTitle = viewSku ? `${viewSku} — ${viewName}` : 'Select a product';
+  const stockQty = Number(viewProduct?.totalQuantityAvailable ?? 0);
+  const selling = formatNaira(viewProduct?.sellingPrice ?? viewProduct?.price);
 
   return (
     <>
@@ -17,20 +31,24 @@ export function ProductModals() {
         id="view-product"
         open={isOpen('view-product')}
         onClose={() => closeModal('view-product')}
-        title="SH-25-CAR — Hand Sanitiser 250ml Carabiner"
-        subtitle="Full product details, pricing, and batch inventory"
+        title={viewTitle}
+        subtitle={
+          viewProduct
+            ? 'Full product details, pricing, and batch inventory'
+            : 'Open a product from the catalog to view details'
+        }
         size="xwide"
         footer={
           <>
             <Button variant="secondary" onClick={() => closeModal('view-product')}>
               Close
             </Button>
-            <RoleGate show={showProdEdit}>
+            <RoleGate show={showProdEdit && !!viewProduct}>
               <Button
                 variant="outline"
                 onClick={() => {
                   closeModal('view-product');
-                  openModal('edit-product');
+                  openModal('edit-product', { product: viewProduct });
                 }}
               >
                 Edit Product
@@ -39,88 +57,68 @@ export function ProductModals() {
           </>
         }
       >
-        <div className="g2" style={{ marginBottom: 0 }}>
-          <div className="card cp" style={{ marginBottom: 14 }}>
-            <div className="ch">
-              <span className="ct">Product Metadata</span>
+        {!viewProduct ? (
+          <InfoBanner>No product selected. Open this modal from the product catalog.</InfoBanner>
+        ) : (
+          <>
+            <div className="g2" style={{ marginBottom: 0 }}>
+              <div className="card cp" style={{ marginBottom: 14 }}>
+                <div className="ch">
+                  <span className="ct">Product Metadata</span>
+                </div>
+                <IRow
+                  label="SKU"
+                  value={
+                    <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>
+                      {viewSku}
+                    </span>
+                  }
+                />
+                <IRow label="Product Name" value={viewName} />
+                <IRow label="Brand / Manufacturer" value={viewProduct.manufacturer || '—'} />
+                <IRow label="Category" value={viewProduct.productCategory || '—'} />
+                <IRow label="Status" value={viewProduct.status || '—'} />
+              </div>
+              <div className="card cp" style={{ marginBottom: 14 }}>
+                <div className="ch">
+                  <span className="ct">Pricing & Stock Summary</span>
+                </div>
+                <IRow label="Selling Price" value={selling} />
+                <IRow
+                  label="Supply Price"
+                  value={formatNaira(viewProduct.supplyPrice ?? viewProduct.price)}
+                />
+                <IRow label="Available Stock" value={`${stockQty.toLocaleString()} units`} />
+                <IRow
+                  label="Stock Status"
+                  value={
+                    <Badge variant={stockQty <= 0 ? 'red' : stockQty < 100 ? 'amber' : 'green'}>
+                      {stockQty <= 0 ? 'Out of Stock' : stockQty < 100 ? 'Low Stock' : 'In Stock'}
+                    </Badge>
+                  }
+                />
+              </div>
             </div>
-            <IRow label="SKU" value={<span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>SH-25-CAR</span>} />
-            <IRow label="Product Name" value="Hand Sanitiser 250ml Carabiner" />
-            <IRow label="Brand Owner" value="Sartor Health Company Ltd" />
-            <IRow label="Category" value="Personal Care" />
-            <IRow label="Warehouse" value="Abuja Central" />
-          </div>
-          <div className="card cp" style={{ marginBottom: 14 }}>
-            <div className="ch">
-              <span className="ct">Pricing & Stock Summary</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <SDivLabel style={{ margin: 0 }}>Inventory Batches</SDivLabel>
+              <RoleGate show={showProdStock}>
+                <Button
+                  variant="green"
+                  size="sm"
+                  onClick={() => {
+                    closeModal('view-product');
+                    openModal('add-batch', { product: viewProduct });
+                  }}
+                >
+                  + Add Batch
+                </Button>
+              </RoleGate>
             </div>
-            <IRow label="Selling Price" value="₦1,200" />
-            <IRow label="Available Stock" value="2,340 units" />
-            <IRow label="Committed Qty" value="120 units" />
-            <IRow label="Stock Status" value={<Badge variant="green">OK — Above Reorder Level</Badge>} />
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <SDivLabel style={{ margin: 0 }}>Inventory Batches — Full Traceability</SDivLabel>
-          <RoleGate show={showProdStock}>
-            <Button
-              variant="green"
-              size="sm"
-              onClick={() => {
-                closeModal('view-product');
-                openModal('add-batch');
-              }}
-            >
-              + Add Batch
-            </Button>
-          </RoleGate>
-        </div>
-        <div className="tw">
-          <table className="batch-table">
-            <thead>
-              <tr>
-                <th>Batch No.</th>
-                <th>Exp Date</th>
-                <th>Available</th>
-                <th>Committed</th>
-                <th>Supplier</th>
-                <th>Purchase Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>BTH-2024-09A</td>
-                <td>Sep 2026</td>
-                <td>680</td>
-                <td>120</td>
-                <td>West Africa Chemicals</td>
-                <td>₦740</td>
-              </tr>
-              <tr>
-                <td style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>BTH-2024-06B</td>
-                <td>Jun 2026</td>
-                <td>1000</td>
-                <td>0</td>
-                <td>West Africa Chemicals</td>
-                <td>₦760</td>
-              </tr>
-              <tr style={{ background: 'rgba(239,68,68,.03)' }}>
-                <td style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>BTH-2024-03C</td>
-                <td style={{ color: 'var(--rt)', fontWeight: 700 }}>
-                  Dec 2025 <Icon name="alert" size={14} style={{ verticalAlign: 'middle' }} />
-                </td>
-                <td>660</td>
-                <td>0</td>
-                <td>Kemi Industries</td>
-                <td>₦720</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <InfoBanner variant="warn" style={{ marginTop: 12 }}>
-          <strong>BTH-2024-03C</strong> has an expired Exp date. This batch should be quarantined per
-          company policy.
-        </InfoBanner>
+            <InfoBanner>
+              Batch-level detail will appear here when inventory batches are linked to this SKU.
+            </InfoBanner>
+          </>
+        )}
       </SartorModal>
 
       <RoleGate show={showAddProduct}>
@@ -145,21 +143,26 @@ export function ProductModals() {
           <SDivLabel style={{ marginTop: 0 }}>Product Identity</SDivLabel>
           <FRow>
             <FG label="Auto-Generated SKU" className="w50">
-              <input className="inp" readOnly style={{ background: 'var(--bg)', fontFamily: "'DM Mono',monospace", color: 'var(--tx3)' }} placeholder="SH-XXXX (assigned on save)" />
+              <input
+                className="inp"
+                readOnly
+                style={{ background: 'var(--bg)', fontFamily: "'DM Mono',monospace", color: 'var(--tx3)' }}
+                placeholder="SH-XXXX (assigned on save)"
+              />
             </FG>
             <FG label="Barcode / QR Code" className="w50">
               <input className="inp" placeholder="If applicable" />
             </FG>
           </FRow>
           <FG label="Product Name *" full style={{ marginBottom: 10 }}>
-            <input className="inp" placeholder="e.g. Hand Sanitiser 750ml Carabiner" />
+            <input className="inp" placeholder="Product name" />
           </FG>
           <FRow>
             <FG label="Manufacturer *" className="w50">
               <input className="inp" placeholder="Name of manufacturer" />
             </FG>
             <FG label="Brand Owner *" className="w50">
-              <input className="inp" placeholder="e.g. Sartor Health Company Ltd" />
+              <input className="inp" placeholder="Brand owner" />
             </FG>
           </FRow>
           <FRow>
@@ -188,9 +191,13 @@ export function ProductModals() {
             </FG>
           </FRow>
           <FG label="Assign to Warehouse *" full>
-            <select className="sel" defaultValue="Abuja Central">
-              <option>Abuja Central</option>
-              <option>Lagos Hub</option>
+            <select className="sel" defaultValue="">
+              <option value="">Select warehouse…</option>
+              {warehouses.map((w) => (
+                <option key={w._id} value={w._id}>
+                  {w.name}
+                </option>
+              ))}
             </select>
           </FG>
         </SartorModal>
@@ -201,7 +208,11 @@ export function ProductModals() {
           id="edit-product"
           open={isOpen('edit-product')}
           onClose={() => closeModal('edit-product')}
-          title="Edit Product — SH-25-CAR"
+          title={
+            editProduct
+              ? `Edit Product — ${productSku(editProduct)}`
+              : 'Edit Product — Select a product'
+          }
           subtitle="CEO and Inventory Officer only"
           size="wide"
           footer={
@@ -215,22 +226,45 @@ export function ProductModals() {
             </ModalFooterActions>
           }
         >
-          <FRow>
-            <FG label="Product Name" className="w50">
-              <input className="inp" defaultValue="Hand Sanitiser 250ml Carabiner" />
-            </FG>
-            <FG label="Manufacturer" className="w50">
-              <input className="inp" defaultValue="Sartor Health Company Ltd" />
-            </FG>
-          </FRow>
-          <FRow>
-            <FG label="Selling Price (₦)" className="w50">
-              <input className="inp" type="number" defaultValue={1200} />
-            </FG>
-            <FG label="Reorder Level" className="w50">
-              <input className="inp" type="number" defaultValue={500} />
-            </FG>
-          </FRow>
+          {!editProduct ? (
+            <InfoBanner>No product selected. Open this modal from the product catalog.</InfoBanner>
+          ) : (
+            <>
+              <FRow>
+                <FG label="Product Name" className="w50">
+                  <input
+                    className="inp"
+                    key={`name-${editProduct._id}`}
+                    defaultValue={editProduct.productName || ''}
+                  />
+                </FG>
+                <FG label="Manufacturer" className="w50">
+                  <input
+                    className="inp"
+                    key={`mfg-${editProduct._id}`}
+                    defaultValue={editProduct.manufacturer || ''}
+                  />
+                </FG>
+              </FRow>
+              <FRow>
+                <FG label="Selling Price (₦)" className="w50">
+                  <input
+                    className="inp"
+                    type="number"
+                    key={`price-${editProduct._id}`}
+                    defaultValue={num(editProduct.sellingPrice ?? editProduct.price)}
+                  />
+                </FG>
+                <FG label="Category" className="w50">
+                  <input
+                    className="inp"
+                    key={`cat-${editProduct._id}`}
+                    defaultValue={editProduct.productCategory || ''}
+                  />
+                </FG>
+              </FRow>
+            </>
+          )}
         </SartorModal>
       </RoleGate>
 
@@ -239,7 +273,11 @@ export function ProductModals() {
         open={isOpen('add-batch')}
         onClose={() => closeModal('add-batch')}
         title="Add / Edit Inventory Batch"
-        subtitle="SH-25-CAR — Hand Sanitiser 250ml Carabiner"
+        subtitle={
+          viewProduct || editProduct
+            ? `${productSku((viewProduct || editProduct)!)} — ${(viewProduct || editProduct)!.productName || 'Product'}`
+            : 'Select a product first'
+        }
         footer={
           <ModalFooterActions onCancel={() => closeModal('add-batch')}>
             <Button
@@ -253,7 +291,7 @@ export function ProductModals() {
       >
         <FRow>
           <FG label="Batch Number *" className="w50">
-            <input className="inp" placeholder="e.g. BTH-2024-12A" />
+            <input className="inp" placeholder="Batch number" />
           </FG>
           <FG label="Quantity Received *" className="w50">
             <input className="inp" type="number" placeholder="0" />
@@ -270,7 +308,7 @@ export function ProductModals() {
         <SDivLabel>Supplier & Purchase Details</SDivLabel>
         <FRow>
           <FG label="Supplier Name *" className="w50">
-            <input className="inp" placeholder="e.g. West Africa Chemicals Ltd" />
+            <input className="inp" placeholder="Supplier name" />
           </FG>
           <FG label="Supplier Invoice Ref" className="w50">
             <input className="inp" placeholder="Supplier invoice number" />
@@ -293,7 +331,7 @@ export function ProductModals() {
         id="pack-lpo"
         open={isOpen('pack-lpo')}
         onClose={() => closeModal('pack-lpo')}
-        title="Pack LPO-0039 — Konga Health"
+        title="Pack LPO"
         subtitle="Select batches and enter quantities. Available qty updates live. FEFO order recommended."
         size="wide"
         footer={
@@ -313,40 +351,6 @@ export function ProductModals() {
           <strong>Committed:</strong> Stock reserved when you save this pack. Validate all SKU totals
           match LPO quantities before saving.
         </InfoBanner>
-        <div className="pack-sku-block">
-          <div className="pack-sku-header">
-            <div>
-              <div className="pack-sku-name">SH-25-CAR — Hand Sanitiser 250ml Carabiner</div>
-              <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 2 }}>
-                2,340 units total available across all batches
-              </div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div className="pack-sku-lpo-qty">LPO Required</div>
-              <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color: 'var(--N)' }}>
-                100 units
-              </div>
-            </div>
-          </div>
-          <div className="pack-batch-header">
-            <span />
-            <span>Batch</span>
-            <span>Exp Date</span>
-            <span>Available</span>
-            <span>Pack Qty</span>
-          </div>
-          <div className="pack-batch-row">
-            <input type="checkbox" style={{ accentColor: 'var(--G)' }} />
-            <span className="pack-batch-id">BTH-2024-09A</span>
-            <span className="pack-exp">Sep 2026</span>
-            <span className="pack-avail">680</span>
-            <input className="inp pack-qty-inp" type="number" placeholder="0" min={0} max={680} />
-          </div>
-          <div className="pack-total-row">
-            <span className="pack-total-lbl">Total packed for this SKU:</span>
-            <span className="pack-total-counter">0 / 100</span>
-          </div>
-        </div>
         <FG label="Packing Notes" full style={{ marginTop: 10 }}>
           <textarea className="ta" rows={2} placeholder="Notes for WH Manager or driver…" />
         </FG>
@@ -358,7 +362,11 @@ export function ProductModals() {
           open={isOpen('approve-stock')}
           onClose={() => closeModal('approve-stock')}
           title="Approve Stock Update"
-          subtitle="Request from Amaka Obi (Inventory Officer)"
+          subtitle={
+            approveProduct
+              ? `${productSku(approveProduct)} — ${approveProduct.productName || 'Product'}`
+              : 'Review pending stock update'
+          }
           size="narrow"
           footer={
             <>
@@ -385,8 +393,22 @@ export function ProductModals() {
             </>
           }
         >
-          <IRow label="Product" value="SH-25-CAR" />
-          <IRow label="Requested Change" value="+500 units — Batch BTH-2024-12A" />
+          <IRow
+            label="Product"
+            value={
+              approveProduct
+                ? `${productSku(approveProduct)} — ${approveProduct.productName || 'Product'}`
+                : 'Select a product'
+            }
+          />
+          <IRow
+            label="Current Available"
+            value={
+              approveProduct
+                ? `${Number(approveProduct.totalQuantityAvailable ?? 0).toLocaleString()} units`
+                : '—'
+            }
+          />
           <FG label="WH Manager Note (optional)" full style={{ marginTop: 10 }}>
             <textarea className="ta" rows={2} />
           </FG>

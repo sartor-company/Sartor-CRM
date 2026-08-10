@@ -4,8 +4,11 @@ import { Icon } from '../components/ui/Icon';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { RoleGate } from '../components/ui/RoleGate';
+import type { ApiProduct } from '../api/catalog';
+import { opsApi } from '../api/ops';
 import { useApp } from '../context/AppContext';
-import { GRN_PRODUCTS } from '../data/mock';
+import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
+import { num } from '../utils/format';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, UploadBtn, useModalActions } from './helpers';
 
 type GrnRow = {
@@ -17,19 +20,37 @@ type GrnRow = {
   unitPrice: number;
 };
 
-function emptyGrnRow(id: number): GrnRow {
-  return { id, sku: '', batch: '', ordered: 0, received: 0, unitPrice: 0 };
+function emptyGrnRow(id: number, sku = '', unitPrice = 0): GrnRow {
+  return { id, sku, batch: '', ordered: 0, received: 0, unitPrice };
+}
+
+function productUnitPrice(p: ApiProduct) {
+  return num(p.sellingPrice ?? p.supplyPrice ?? p.price);
 }
 
 export function InventoryModals() {
-  const { isOpen, closeModal, handleSubmit, showToast } = useModalActions();
-  const { isCeo } = useApp();
+  const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
+  const { isCeo, displayName } = useApp();
+  const { products, suppliers, warehouses } = useLiveOptions();
   const [grnRows, setGrnRows] = useState<GrnRow[]>([emptyGrnRow(1)]);
+
+  const grnPayload = getPayload<{ product?: ApiProduct }>('grn');
+  const quarantinePayload = getPayload<{ product?: ApiProduct }>('quarantine-batch');
+  const adjustPayload = getPayload<{ product?: ApiProduct }>('stock-adjust');
+  const writeoffPayload = getPayload<{ product?: ApiProduct }>('stock-writeoff');
 
   const grnOpen = isOpen('grn');
   useEffect(() => {
-    if (!grnOpen) setGrnRows([emptyGrnRow(1)]);
-  }, [grnOpen]);
+    if (!grnOpen) {
+      setGrnRows([emptyGrnRow(1)]);
+      return;
+    }
+    const p = grnPayload?.product;
+    if (p) {
+      const sku = productSku(p);
+      setGrnRows([emptyGrnRow(1, sku, productUnitPrice(p))]);
+    }
+  }, [grnOpen, grnPayload?.product]);
 
   const grnTotals = useMemo(() => {
     const lines = grnRows.filter((r) => r.sku);
@@ -44,9 +65,39 @@ export function InventoryModals() {
   };
 
   const onSkuChange = (id: number, sku: string) => {
-    const p = GRN_PRODUCTS.find((x) => x.sku === sku);
-    updateGrnRow(id, { sku, unitPrice: p?.price ?? 0 });
+    const p = products.find((x) => productSku(x) === sku);
+    updateGrnRow(id, { sku, unitPrice: p ? productUnitPrice(p) : 0 });
   };
+
+  const productOptions = products.map((p) => (
+    <option key={p._id} value={productSku(p)}>
+      {productLabel(p)}
+    </option>
+  ));
+
+  const warehouseOptions = (
+    <>
+      <option value="">Select warehouse…</option>
+      {warehouses.map((w) => (
+        <option key={w._id} value={w._id}>
+          {w.name}
+        </option>
+      ))}
+    </>
+  );
+
+  const supplierOptions = (
+    <>
+      <option value="">Select supplier…</option>
+      {suppliers.map((s) => (
+        <option key={s._id} value={s._id}>
+          {s.name || s.contactName || s._id.slice(-6)}
+        </option>
+      ))}
+    </>
+  );
+
+  const defaultSku = (p?: ApiProduct) => (p ? productSku(p) : '');
 
   return (
     <>
@@ -71,7 +122,7 @@ export function InventoryModals() {
                 handleSubmit(
                   'grn',
                   e.currentTarget,
-                  'GRN-0005 generated. All batch records updated. GRN document ready to print.',
+                  'GRN generated. All batch records updated. GRN document ready to print.',
                 )
               }
             >
@@ -106,13 +157,11 @@ export function InventoryModals() {
           >
             <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Supplier *</span>}>
               <select className="sel" style={{ fontSize: 12 }}>
-                <option value="">Select supplier…</option>
-                <option>West Africa Chemicals Ltd</option>
-                <option>Kemi Industries Nigeria</option>
+                {supplierOptions}
               </select>
             </FG>
             <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Supplier Invoice No. *</span>}>
-              <input className="inp" style={{ fontSize: 12, fontFamily: "'DM Mono',monospace" }} placeholder="WAC-2024-0891" />
+              <input className="inp" style={{ fontSize: 12, fontFamily: "'DM Mono',monospace" }} placeholder="Invoice ref" />
             </FG>
             <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Invoice Date *</span>}>
               <input className="inp" type="date" style={{ fontSize: 12 }} />
@@ -121,7 +170,7 @@ export function InventoryModals() {
               <input className="inp" type="date" style={{ fontSize: 12 }} />
             </FG>
             <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Waybill No.</span>}>
-              <input className="inp" style={{ fontSize: 12 }} placeholder="DLV-00123" />
+              <input className="inp" style={{ fontSize: 12 }} placeholder="Waybill / delivery ref" />
             </FG>
           </div>
         </div>
@@ -189,11 +238,7 @@ export function InventoryModals() {
                 onChange={(e) => onSkuChange(row.id, e.target.value)}
               >
                 <option value="">Select…</option>
-                {GRN_PRODUCTS.map((p) => (
-                  <option key={p.sku} value={p.sku}>
-                    {p.sku}
-                  </option>
-                ))}
+                {productOptions}
               </select>
               <input
                 className="inp"
@@ -277,7 +322,7 @@ export function InventoryModals() {
             </select>
           </FG>
           <FG label="Inspection Done By">
-            <input className="inp" defaultValue="Amaka Obi" />
+            <input className="inp" defaultValue={displayName} />
           </FG>
         </FRow>
         </div>
@@ -317,19 +362,13 @@ export function InventoryModals() {
         </InfoBanner>
         <FRow>
           <FG label="Product *" className="w50">
-            <select className="sel">
+            <select className="sel" defaultValue={defaultSku(quarantinePayload?.product)}>
               <option value="">Select product…</option>
-              {GRN_PRODUCTS.map((p) => (
-                <option key={p.sku}>{p.sku}</option>
-              ))}
+              {productOptions}
             </select>
           </FG>
           <FG label="Batch *" className="w50">
-            <select className="sel">
-              <option value="">Select batch…</option>
-              <option>BTH-2024-09A (Available: 680)</option>
-              <option>BTH-2024-03C — EXPIRED (660)</option>
-            </select>
+            <input className="inp" placeholder="Batch number" />
           </FG>
         </FRow>
         <FRow>
@@ -364,13 +403,34 @@ export function InventoryModals() {
           <ModalFooterActions onCancel={() => closeModal('stock-recon-count')}>
             <Button
               variant="primary"
-              onClick={(e) =>
-                handleSubmit(
-                  'stock-recon-count',
-                  e.currentTarget,
-                  'Cycle count submitted. Variances calculated and flagged for review.',
-                )
-              }
+              onClick={(e) => {
+                const btn = e.currentTarget;
+                const physicalInputs = document.querySelectorAll<HTMLInputElement>('[data-recon-physical]');
+                const rows = Array.from(physicalInputs);
+                void (async () => {
+                  btn.disabled = true;
+                  try {
+                    for (const input of rows) {
+                      const systemQty = Number(input.dataset.systemQty || 0);
+                      const physicalQty = Number(input.value || 0);
+                      if (!input.value) continue;
+                      await opsApi.createRecon({
+                        sku: input.dataset.sku || 'SKU',
+                        productName: input.dataset.product || 'Product',
+                        systemQty,
+                        physicalQty,
+                      });
+                    }
+                    closeModal('stock-recon-count');
+                    showToast('Cycle count submitted. Variances calculated and flagged for review.', 'ok');
+                    window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+                  } catch (err) {
+                    showToast(err instanceof Error ? err.message : 'Count failed', 'err');
+                  } finally {
+                    btn.disabled = false;
+                  }
+                })();
+              }}
             >
               Submit Count →
             </Button>
@@ -384,22 +444,20 @@ export function InventoryModals() {
           </FG>
           <FG label="Category to Count">
             <select className="sel">
-              <option>Personal Care — All SKUs</option>
-              <option>SH-25-CAR only</option>
+              <option value="">All products</option>
+              {products.map((p) => (
+                <option key={p._id} value={productSku(p)}>
+                  {productLabel(p)}
+                </option>
+              ))}
             </select>
           </FG>
           <FG label="Warehouse">
-            <select className="sel" defaultValue="Abuja Central">
-              <option>Abuja Central</option>
-              <option>Lagos Hub</option>
-            </select>
+            <select className="sel">{warehouseOptions}</select>
           </FG>
         </FRow>
         <FG label="Counter Name *" full style={{ marginBottom: 12 }}>
-          <select className="sel">
-            <option>Amaka Obi (Inventory Officer)</option>
-            <option>Musa Abdullahi (WH Manager)</option>
-          </select>
+          <input className="inp" defaultValue={displayName} />
         </FG>
         <SDivLabel>Physical Count Entry</SDivLabel>
         <div style={{ overflowX: 'auto' }}>
@@ -407,31 +465,42 @@ export function InventoryModals() {
             <thead>
               <tr>
                 <th>SKU</th>
-                <th>Batch</th>
+                <th>Product</th>
                 <th style={{ textAlign: 'right' }}>System Qty</th>
                 <th style={{ textAlign: 'right' }}>Physical Count *</th>
               </tr>
             </thead>
             <tbody>
-              {[
-                { sku: 'SH-25-CAR', batch: 'BTH-2024-09A', sys: 680 },
-                { sku: 'SH-25-CAR', batch: 'BTH-2024-06B', sys: 1000 },
-                { sku: 'SH-25-SIL', batch: 'BTH-2024-08B', sys: 380 },
-              ].map((r) => (
-                <tr key={`${r.sku}-${r.batch}`}>
-                  <td style={{ fontFamily: "'DM Mono',monospace", fontSize: 11 }}>{r.sku}</td>
-                  <td style={{ fontFamily: "'DM Mono',monospace", fontSize: 11 }}>{r.batch}</td>
-                  <td style={{ fontFamily: "'DM Mono',monospace", textAlign: 'right' }}>{r.sys}</td>
-                  <td style={{ padding: '4px 10px' }}>
-                    <input
-                      className="inp"
-                      type="number"
-                      placeholder="Enter count"
-                      style={{ padding: '5px 8px', fontSize: 12, textAlign: 'right', width: 110 }}
-                    />
+              {products.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ color: 'var(--tx3)', padding: 12 }}>
+                    No products loaded.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                products.slice(0, 8).map((p) => {
+                  const sku = productSku(p);
+                  const sys = Number(p.totalQuantityAvailable ?? 0);
+                  return (
+                    <tr key={p._id}>
+                      <td style={{ fontFamily: "'DM Mono',monospace", fontSize: 11 }}>{sku}</td>
+                      <td>{p.productName || '—'}</td>
+                      <td style={{ fontFamily: "'DM Mono',monospace", textAlign: 'right' }}>{sys}</td>
+                      <td style={{ padding: '4px 10px' }}>
+                        <input
+                          className="inp"
+                          type="number"
+                          placeholder="Enter count"
+                          data-recon-physical
+                          data-sku={sku}
+                          data-product={p.productName || sku}
+                          data-system-qty={sys}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -470,15 +539,12 @@ export function InventoryModals() {
         <FRow>
           <FG label="Product / SKU *" className="w50">
             <select className="sel">
-              <option>SH-50-CAR — Hand Sanitiser 500ml (CRITICAL)</option>
-              <option>SH-25-SIL — Silicone 250ml (Low)</option>
+              <option value="">Select product…</option>
+              {productOptions}
             </select>
           </FG>
           <FG label="Preferred Supplier" className="w50">
-            <select className="sel">
-              <option>West Africa Chemicals Ltd</option>
-              <option>Kemi Industries Nigeria</option>
-            </select>
+            <select className="sel">{supplierOptions}</select>
           </FG>
         </FRow>
         <FRow>
@@ -489,8 +555,6 @@ export function InventoryModals() {
             <input className="inp" type="date" />
           </FG>
         </FRow>
-        <IRow label="Current Available" value="85 units" />
-        <IRow label="Reorder Level" value="500 units" />
         <FG label="Justification / Notes" full style={{ marginTop: 10 }}>
           <textarea className="ta" rows={2} placeholder="Why is this urgent?" />
         </FG>
@@ -522,21 +586,23 @@ export function InventoryModals() {
           </InfoBanner>
           <FRow>
             <FG label="Product *" className="w50">
-              <select className="sel">
+              <select className="sel" defaultValue={defaultSku(adjustPayload?.product)}>
                 <option value="">Select…</option>
-                {GRN_PRODUCTS.map((p) => (
-                  <option key={p.sku}>{p.sku}</option>
-                ))}
+                {productOptions}
               </select>
             </FG>
             <FG label="Batch *" className="w50">
-              <select className="sel">
-                <option value="">Select…</option>
-                <option>BTH-2024-09A</option>
-              </select>
+              <input className="inp" placeholder="Batch number" />
             </FG>
           </FRow>
-          <IRow label="Current Available" value="680 units" />
+          <IRow
+            label="Current Available"
+            value={
+              adjustPayload?.product
+                ? `${Number(adjustPayload.product.totalQuantityAvailable ?? 0).toLocaleString()} units`
+                : '—'
+            }
+          />
           <FRow>
             <FG label="Adjustment Type" className="w50">
               <select className="sel">
@@ -591,20 +657,13 @@ export function InventoryModals() {
         </InfoBanner>
         <FRow>
           <FG label="Product *" className="w50">
-            <select className="sel">
+            <select className="sel" defaultValue={defaultSku(writeoffPayload?.product)}>
               <option value="">Select product…</option>
-              {GRN_PRODUCTS.map((p) => (
-                <option key={p.sku}>
-                  {p.sku} — {p.name}
-                </option>
-              ))}
+              {productOptions}
             </select>
           </FG>
           <FG label="Batch *" className="w50">
-            <select className="sel">
-              <option value="">Select batch…</option>
-              <option>BTH-2024-03C — EXPIRED (660 units)</option>
-            </select>
+            <input className="inp" placeholder="Batch number" />
           </FG>
         </FRow>
         <FRow>

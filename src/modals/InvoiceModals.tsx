@@ -5,7 +5,10 @@ import { Icon, IconLabel } from '../components/ui/Icon';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { RoleGate } from '../components/ui/RoleGate';
+import { leadName, type CrmInvoice } from '../api/crm';
 import { useRoleGates } from '../hooks/useRoleGates';
+import { formatDate, formatNaira, num } from '../utils/format';
+import { invoiceStatusVariant } from '../utils/statusBadges';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, UploadBtn, useModalActions } from './helpers';
 
 function PinInputs({ count = 6 }: { count?: number }) {
@@ -18,10 +21,44 @@ function PinInputs({ count = 6 }: { count?: number }) {
   );
 }
 
+function useSharedInvoice(
+  getPayload: <T extends Record<string, unknown> | null = Record<string, unknown> | null>(
+    id: import('../types').ModalId,
+  ) => T,
+) {
+  const view = getPayload<{ invoice?: CrmInvoice }>('view-invoice')?.invoice;
+  const qr = getPayload<{ invoice?: CrmInvoice }>('qr-view')?.invoice;
+  const addPay = getPayload<{ invoice?: CrmInvoice }>('add-payment')?.invoice;
+  const mark = getPayload<{ invoice?: CrmInvoice }>('mark-paid')?.invoice;
+  const confirm = getPayload<{ invoice?: CrmInvoice }>('confirm-payment')?.invoice;
+  return view || qr || addPay || mark || confirm || null;
+}
+
 export function InvoiceModals() {
-  const { isOpen, closeModal, openModal, handleSubmit, showToast } = useModalActions();
+  const { isOpen, closeModal, openModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { showInvAddPay, showInvMarkPaid, showInvConfirmPay } = useRoleGates();
   const [qrStep, setQrStep] = useState<'otp' | 'confirm' | 'success'>('otp');
+
+  const invoice = useSharedInvoice(getPayload);
+  const invId = invoice?.invoiceId || (invoice ? invoice._id.slice(-6) : 'Invoice');
+  const customer =
+    invoice?.name ||
+    leadName(typeof invoice?.lead === 'object' ? invoice.lead : null) ||
+    (invoice ? 'Customer' : 'Select an invoice');
+  const amount = formatNaira(num(invoice?.totalAmount));
+  const due = formatDate(invoice?.dueDate);
+  const status = invoice?.status || '—';
+  const lpoId =
+    typeof invoice?.lpo === 'object' && invoice.lpo
+      ? invoice.lpo.lpoId || '—'
+      : '—';
+  const terms =
+    typeof invoice?.lpo === 'object' && invoice.lpo ? invoice.lpo.terms || '—' : '—';
+
+  const passInvoice = (id: import('../types').ModalId) => {
+    if (invoice) openModal(id, { invoice });
+    else openModal(id);
+  };
 
   return (
     <>
@@ -29,8 +66,8 @@ export function InvoiceModals() {
         id="view-invoice"
         open={isOpen('view-invoice')}
         onClose={() => closeModal('view-invoice')}
-        title="Invoice INV-00042"
-        subtitle="FreshMart NG · POD · Delivered 8 May 2026"
+        title={`Invoice ${invId}`}
+        subtitle={`${customer} · ${terms} · Due ${due}`}
         size="wide"
         footer={
           <>
@@ -44,7 +81,7 @@ export function InvoiceModals() {
               variant="secondary"
               onClick={() => {
                 closeModal('view-invoice');
-                openModal('qr-view');
+                passInvoice('qr-view');
               }}
             >
               <IconLabel icon="camera" size={13}>QR Status</IconLabel>
@@ -64,7 +101,7 @@ export function InvoiceModals() {
                 variant="amber"
                 onClick={() => {
                   closeModal('view-invoice');
-                  openModal('mark-paid');
+                  passInvoice('mark-paid');
                 }}
               >
                 Mark as Paid
@@ -75,7 +112,7 @@ export function InvoiceModals() {
                 variant="green"
                 onClick={() => {
                   closeModal('view-invoice');
-                  openModal('confirm-payment');
+                  passInvoice('confirm-payment');
                 }}
               >
                 <IconLabel icon="check" size={13}>Confirm Full Payment</IconLabel>
@@ -84,166 +121,116 @@ export function InvoiceModals() {
           </>
         }
       >
-        <div className="aging-wrap aging-warn">
-          <div className="aging-label">
-            <span>Invoice Age</span>
-            <span>Overdue (POD)</span>
-          </div>
-          <div className="aging-track">
-            <div className="aging-fill" style={{ width: '100%' }} />
-          </div>
-          <div className="aging-status">
-            <IconLabel icon="alert" size={13}>OVERDUE — Due on delivery 8 May 2026</IconLabel>
-          </div>
-        </div>
-        <div className="inv-doc">
-          <div className="inv-doc-head">
-            <div>
-              <div className="inv-doc-logo">Sartor Health</div>
-              <div className="inv-doc-sub">Company Ltd</div>
-            </div>
-            <div className="inv-doc-num">
-              <div className="n">INV-00042</div>
-              <div className="s">8 May 2026</div>
-            </div>
-          </div>
-          <div className="inv-doc-body">
-            <div className="inv-party">
-              <div>
-                <div className="inv-party-lbl">From</div>
-                <div className="inv-party-val">Sartor Health Company Ltd</div>
+        {!invoice ? (
+          <InfoBanner>No invoice selected. Open from the invoices list or dashboard.</InfoBanner>
+        ) : (
+          <>
+            <div className="aging-wrap aging-warn">
+              <div className="aging-label">
+                <span>Invoice Status</span>
+                <span>{status}</span>
               </div>
-              <div>
-                <div className="inv-party-lbl">Bill To</div>
-                <div className="inv-party-val">FreshMart NG</div>
-                <div className="inv-party-addr">31 Garki Market Rd, Garki, FCT</div>
+              <div className="aging-track">
+                <div className="aging-fill" style={{ width: '100%' }} />
+              </div>
+              <div className="aging-status">
+                <IconLabel icon="alert" size={13}>
+                  {status} — Due {due}
+                </IconLabel>
               </div>
             </div>
-            <div className="inv-items">
-              <table>
-                <thead>
-                  <tr>
-                    <th>SKU</th>
-                    <th>Product</th>
-                    <th>Batch</th>
-                    <th>Qty</th>
-                    <th>Unit Price</th>
-                    <th>Subtotal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>SH-25-CAR</td>
-                    <td>Hand Sanitiser 250ml Carabiner</td>
-                    <td>BTH-2024-09A</td>
-                    <td>100</td>
-                    <td>₦1,200</td>
-                    <td>₦120,000</td>
-                  </tr>
-                  <tr>
-                    <td>SH-25-SIL</td>
-                    <td>Silicone 250ml</td>
-                    <td>BTH-2024-08B</td>
-                    <td>60</td>
-                    <td>₦1,000</td>
-                    <td>₦60,000</td>
-                  </tr>
-                  <tr>
-                    <td>SH-25-HOK</td>
-                    <td>Silicone Hook Pack</td>
-                    <td>BTH-2024-09C</td>
-                    <td>60</td>
-                    <td>₦1,000</td>
-                    <td>₦60,000</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div className="inv-total">
-              <div className="inv-total-box">
-                <div className="inv-total-row">
-                  <span>Subtotal (excl. VAT)</span>
-                  <span>₦218,182</span>
+            <div className="inv-doc">
+              <div className="inv-doc-head">
+                <div>
+                  <div className="inv-doc-logo">Sartor Health</div>
+                  <div className="inv-doc-sub">Company Ltd</div>
                 </div>
-                <div className="inv-total-row">
-                  <span>VAT 7.5% (Personal Care)</span>
-                  <span>₦21,818</span>
+                <div className="inv-doc-num">
+                  <div className="n">{invId}</div>
+                  <div className="s">{formatDate(invoice.creationDateTime)}</div>
                 </div>
-                <div className="inv-total-row grand">
-                  <span>Balance Due</span>
-                  <span style={{ color: 'var(--rt)' }}>₦140,000</span>
+              </div>
+              <div className="inv-doc-body">
+                <div className="inv-party">
+                  <div>
+                    <div className="inv-party-lbl">From</div>
+                    <div className="inv-party-val">Sartor Health Company Ltd</div>
+                  </div>
+                  <div>
+                    <div className="inv-party-lbl">Bill To</div>
+                    <div className="inv-party-val">{customer}</div>
+                  </div>
+                </div>
+                <div className="inv-total">
+                  <div className="inv-total-box">
+                    <div className="inv-total-row grand">
+                      <span>Amount</span>
+                      <span>{amount}</span>
+                    </div>
+                    <div className="inv-total-row">
+                      <span>Status</span>
+                      <span>
+                        <Badge variant={invoiceStatusVariant(invoice.status)}>{status}</Badge>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="inv-terms">
+                  <strong>LPO:</strong> {lpoId} · <strong>Terms:</strong> {terms} ·{' '}
+                  <strong>Due:</strong> {due}
                 </div>
               </div>
             </div>
-            <div className="inv-terms">
-              <strong>LPO:</strong> LPO-0042 · <strong>Delivery:</strong> 8 May 2026 · Driver: Chidi
-              Okeke
-            </div>
-          </div>
-        </div>
-        <div className="pay-timeline">
-          <div className="pt-lbl">Payment History</div>
-          <div className="pt-item">
-            <div className="pt-dot" />
-            <div>
-              <div className="pt-amt">₦100,000</div>
-              <div className="pt-dt">9 May · Bank Transfer</div>
-            </div>
-            <div className="pt-by">Abubakar Idah</div>
-          </div>
-          <div className="pt-empty">₦140,000 balance remaining.</div>
-        </div>
-        <div className="sdiv" />
-        <div
-          style={{
-            background: 'var(--bg)',
-            border: '1px solid var(--brd)',
-            borderRadius: 9,
-            padding: '14px 16px',
-            marginBottom: 12,
-          }}
-        >
-          <SDivLabel style={{ marginTop: 0 }}>QR Delivery Confirmation</SDivLabel>
-          <Badge variant="amber">Pending — QR not yet scanned</Badge>
-          <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 6 }}>
-            QR code sent to customer via WhatsApp & Email on dispatch · 8 May 2026 09:14
-          </div>
-          <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
-            <Button variant="green" size="sm" onClick={() => openModal('qr-view')}>
-              <IconLabel icon="camera" size={13}>View QR Code</IconLabel>
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => showToast('QR confirmation link resent to customer via WhatsApp & Email.')}
+            <div
+              style={{
+                background: 'var(--bg)',
+                border: '1px solid var(--brd)',
+                borderRadius: 9,
+                padding: '14px 16px',
+                marginBottom: 12,
+                marginTop: 12,
+              }}
             >
-              Resend QR Link
-            </Button>
-          </div>
-        </div>
-        <RoleGate show={showInvAddPay}>
-          <div className="sdiv" />
-          <SDivLabel style={{ marginTop: 0 }}>Add Payment Record</SDivLabel>
-          <FRow>
-            <FG label="Amount Received *">
-              <input className="inp" type="number" placeholder="₦0.00" />
-            </FG>
-            <FG label="Date *">
-              <input className="inp" type="date" />
-            </FG>
-            <FG label="Method">
-              <select className="sel" defaultValue="Bank Transfer">
-                <option>Bank Transfer</option>
-                <option>Cash</option>
-                <option>POS</option>
-                <option>Cheque</option>
-              </select>
-            </FG>
-          </FRow>
-          <FG label="Evidence / Receipt (optional)" full>
-            <UploadBtn />
-          </FG>
-        </RoleGate>
+              <SDivLabel style={{ marginTop: 0 }}>QR Delivery Confirmation</SDivLabel>
+              <Badge variant="amber">Pending — QR not yet scanned</Badge>
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                <Button variant="green" size="sm" onClick={() => passInvoice('qr-view')}>
+                  <IconLabel icon="camera" size={13}>View QR Code</IconLabel>
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => showToast('QR confirmation link resent to customer via WhatsApp & Email.')}
+                >
+                  Resend QR Link
+                </Button>
+              </div>
+            </div>
+            <RoleGate show={showInvAddPay}>
+              <div className="sdiv" />
+              <SDivLabel style={{ marginTop: 0 }}>Add Payment Record</SDivLabel>
+              <FRow>
+                <FG label="Amount Received *">
+                  <input className="inp" type="number" placeholder="₦0.00" />
+                </FG>
+                <FG label="Date *">
+                  <input className="inp" type="date" />
+                </FG>
+                <FG label="Method">
+                  <select className="sel" defaultValue="Bank Transfer">
+                    <option>Bank Transfer</option>
+                    <option>Cash</option>
+                    <option>POS</option>
+                    <option>Cheque</option>
+                  </select>
+                </FG>
+              </FRow>
+              <FG label="Evidence / Receipt (optional)" full>
+                <UploadBtn />
+              </FG>
+            </RoleGate>
+          </>
+        )}
       </SartorModal>
 
       <SartorModal
@@ -251,7 +238,7 @@ export function InvoiceModals() {
         open={isOpen('add-payment')}
         onClose={() => closeModal('add-payment')}
         title="Add Payment Record"
-        subtitle="INV-00042 · Balance: ₦140,000"
+        subtitle={`${invId} · ${amount}`}
         size="narrow"
         footer={
           <ModalFooterActions onCancel={() => closeModal('add-payment')}>
@@ -293,7 +280,7 @@ export function InvoiceModals() {
         open={isOpen('mark-paid')}
         onClose={() => closeModal('mark-paid')}
         title="Mark Invoice as Fully Paid"
-        subtitle="INV-00042 · Balance: ₦140,000"
+        subtitle={`${invId} · ${amount}`}
         size="narrow"
         footer={
           <ModalFooterActions onCancel={() => closeModal('mark-paid')}>
@@ -318,7 +305,12 @@ export function InvoiceModals() {
         </InfoBanner>
         <FRow>
           <FG label="Final Amount *">
-            <input className="inp" type="number" defaultValue={140000} />
+            <input
+              className="inp"
+              type="number"
+              key={invoice?._id || 'amt'}
+              defaultValue={invoice ? num(invoice.totalAmount) : undefined}
+            />
           </FG>
           <FG label="Date *">
             <input className="inp" type="date" />
@@ -334,7 +326,7 @@ export function InvoiceModals() {
         open={isOpen('confirm-payment')}
         onClose={() => closeModal('confirm-payment')}
         title="Confirm Full Payment"
-        subtitle="INV-00042 · FreshMart NG"
+        subtitle={`${invId} · ${customer}`}
         size="narrow"
         footer={
           <ModalFooterActions onCancel={() => closeModal('confirm-payment')}>
@@ -355,7 +347,12 @@ export function InvoiceModals() {
       >
         <FRow>
           <FG label="Balance Amount *">
-            <input className="inp" type="number" defaultValue={140000} />
+            <input
+              className="inp"
+              type="number"
+              key={`bal-${invoice?._id || 'x'}`}
+              defaultValue={invoice ? num(invoice.totalAmount) : undefined}
+            />
           </FG>
           <FG label="Date *">
             <input className="inp" type="date" />
@@ -365,7 +362,7 @@ export function InvoiceModals() {
           <UploadBtn />
         </FG>
         <InfoBanner variant="succ" style={{ marginTop: 10 }}>
-          <strong>First Invoice:</strong> Will convert FreshMart NG to a Customer and calculate rep
+          <strong>First Invoice:</strong> Will convert {customer} to a Customer and calculate rep
           commission. Cannot be reversed.
         </InfoBanner>
       </SartorModal>
@@ -375,8 +372,8 @@ export function InvoiceModals() {
         open={isOpen('qr-view')}
         onClose={() => closeModal('qr-view')}
         icon="camera"
-        title="QR Delivery Confirmation — INV-00042"
-        subtitle="FreshMart NG · Dispatched 8 May 2026 · Expires in 68 hours"
+        title={`QR Delivery Confirmation — ${invId}`}
+        subtitle={`${customer} · Due ${due}`}
         size="wide"
         footer={
           <>
@@ -387,7 +384,7 @@ export function InvoiceModals() {
               variant="outline"
               onClick={() => {
                 setQrStep('otp');
-                openModal('qr-delivery-confirm');
+                openModal('qr-delivery-confirm', invoice ? { invoice } : undefined);
               }}
             >
               <IconLabel icon="eye" size={13}>Preview Customer Page</IconLabel>
@@ -404,8 +401,8 @@ export function InvoiceModals() {
         }
       >
         <InfoBanner>
-          This QR code was embedded in the invoice PDF sent to FreshMart NG. When the customer scans
-          it, they confirm receipt via OTP at confirm.sartor.ng/delivery.
+          This QR code is linked to {invId} for {customer}. When the customer scans it, they confirm
+          receipt via OTP.
         </InfoBanner>
         <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 24 }}>
           <div style={{ textAlign: 'center' }}>
@@ -433,7 +430,7 @@ export function InvoiceModals() {
                 maxWidth: 152,
               }}
             >
-              confirm.sartor.ng/delivery/INV-00042/a7f3c…
+              confirm.sartor.ng/delivery/{invId}
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 10, justifyContent: 'center' }}>
               <Button variant="primary" size="sm" onClick={() => showToast('QR code downloaded as PNG.')}>
@@ -446,14 +443,12 @@ export function InvoiceModals() {
           </div>
           <div>
             <SDivLabel style={{ marginTop: 0 }}>Confirmation Status</SDivLabel>
-            <Badge variant="amber">⏳ Pending — Awaiting Customer Scan</Badge>
-            <IRow label="Token Issued" value="8 May 2026 · 09:14" />
-            <IRow label="Token Expires" value="10 May 2026 · 09:14 (68 hrs remaining)" />
-            <IRow label="Registered Contact" value="Adebisi Olawale · +234 802 334 5567" />
+            <Badge variant="amber">Pending — Awaiting Customer Scan</Badge>
             <SDivLabel>Invoice Summary</SDivLabel>
-            <IRow label="Invoice" value="INV-00042 · ₦240,000" />
-            <IRow label="LPO Reference" value="LPO-0042" />
-            <IRow label="Driver" value="Chidi Okeke · ABJ-234-KW" />
+            <IRow label="Invoice" value={`${invId} · ${amount}`} />
+            <IRow label="LPO Reference" value={lpoId} />
+            <IRow label="Customer" value={customer} />
+            <IRow label="Due Date" value={due} />
           </div>
         </div>
       </SartorModal>
@@ -479,10 +474,10 @@ export function InvoiceModals() {
               <div style={{ fontSize: 11, color: 'var(--tx3)' }}>Delivery confirmation · Powered by SartorCRM</div>
             </div>
             <div style={{ background: 'var(--bg)', borderRadius: 9, padding: 14, marginBottom: 14 }}>
-              <IRow label="Invoice" value="INV-00042" />
-              <IRow label="Customer" value="FreshMart NG" />
-              <IRow label="Delivery Date" value="8 May 2026" />
-              <IRow label="Invoice Amount" value="₦240,000" />
+              <IRow label="Invoice" value={invId} />
+              <IRow label="Customer" value={customer} />
+              <IRow label="Due Date" value={due} />
+              <IRow label="Invoice Amount" value={amount} />
             </div>
             <div style={{ textAlign: 'center', marginBottom: 14 }}>
               <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
@@ -539,8 +534,8 @@ export function InvoiceModals() {
             <div style={{ fontSize: 13, color: 'var(--tx3)', margin: '8px 0 16px' }}>
               Your confirmation has been recorded.
             </div>
-            <IRow label="Reference" value="INV-00042" />
-            <IRow label="Confirmed By" value="Adebisi Olawale (Procurement)" />
+            <IRow label="Reference" value={invId} />
+            <IRow label="Customer" value={customer} />
             <IRow label="Status" value={<Badge variant="green">All goods received</Badge>} />
             <Button variant="secondary" style={{ marginTop: 16 }} onClick={() => closeModal('qr-delivery-confirm')}>
               Close

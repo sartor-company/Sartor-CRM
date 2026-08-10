@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import {
   giftsRedeemApi,
-  type RedeemGiftResult,
   type RedeemPoolStock,
   type RedeemTodayItem,
 } from '../api/giftsRedeem';

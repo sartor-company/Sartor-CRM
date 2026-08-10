@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Badge, Button, Icon, IconLabel, PageHead } from '../components/ui';
+import { Badge, Button, Icon, IconLabel, PageHead, QueryState } from '../components/ui';
+import { billingApi, type PlatformInvoice } from '../api/billing';
+import { teamApi } from '../api/team';
+import { TIER_LABELS, TIER_PRICING } from '../constants/tiers';
 import { useApp } from '../context/AppContext';
 import { useModal } from '../context/ModalContext';
 import { useToast } from '../context/ToastContext';
+import { formatNaira } from '../context/PaymentIntentContext';
+import { useApiQuery } from '../hooks/useApiQuery';
+import { openSartorInvoice } from '../modals/BillingModals';
+import { useAuthStore } from '../store/authStore';
+import type { BadgeVariant } from '../types';
+import { formatDate } from '../utils/format';
+import { billingInvoiceVariant } from '../utils/statusBadges';
 
 type SettingsPanel = 'users' | 'thresholds' | 'commission' | 'categories' | 'notifications' | 'billing';
 
@@ -32,11 +42,99 @@ const PANEL_LABELS: Record<SettingsPanel, string> = {
   billing: 'Subscription & Billing',
 };
 
+function roleVariant(role?: string): BadgeVariant {
+  const r = (role || '').toLowerCase();
+  if (r.includes('owner') || r.includes('admin') || r.includes('ceo')) return 'navy';
+  if (r.includes('rep') || r.includes('sales')) return 'blue';
+  if (r.includes('merch')) return 'purple';
+  if (r.includes('warehouse') || r.includes('inventory') || r.includes('wh')) return 'amber';
+  if (r.includes('finance') || r.includes('manager')) return 'teal';
+  if (r.includes('driver')) return 'gray';
+  return 'gray';
+}
+
+function dueInLabel(inv: PlatformInvoice) {
+  if (String(inv.status || '').toLowerCase() === 'paid') return 'Paid';
+  if (!inv.dueAt) return '—';
+  const due = new Date(inv.dueAt).getTime();
+  if (Number.isNaN(due)) return '—';
+  const days = Math.ceil((due - Date.now()) / 86_400_000);
+  if (days < 0) return `${Math.abs(days)}d overdue`;
+  if (days === 0) return 'Due today';
+  return `${days} days`;
+}
+
+function mapBillingStatus(status?: string): 'due' | 'paid' | 'overdue' {
+  const s = (status || '').toLowerCase();
+  if (s === 'paid') return 'paid';
+  if (s === 'overdue') return 'overdue';
+  return 'due';
+}
+
 export default function SettingsPage() {
-  const { isCeo, tier } = useApp();
+  const { isCeo, tier, displayName } = useApp();
+  const authUser = useAuthStore((s) => s.user);
   const { openModal } = useModal();
   const { showToast } = useToast();
   const isSnp = tier === 'snp' || tier === '360';
+  const { data: members = [], loading: usersLoading, error: usersError } = useApiQuery(
+    () => teamApi.listUsers(),
+    [],
+  );
+  const { data: billingInvoices, loading: billingLoading } = useApiQuery(
+    () => billingApi.listInvoices(),
+    [],
+  );
+
+  const activeSeats = useMemo(
+    () => (members ?? []).filter((m) => !m.blocked && !m.isDisabled).length,
+    [members],
+  );
+
+  const isCurrentUser = (m: { email?: string; fullName?: string }) => {
+    const email = (authUser?.email || '').toLowerCase();
+    if (email && m.email && m.email.toLowerCase() === email) return true;
+    const name = (authUser?.displayName || displayName || '').trim().toLowerCase();
+    if (name && m.fullName && m.fullName.trim().toLowerCase() === name) return true;
+    return false;
+  };
+
+  const billingRows = useMemo(() => {
+    return (billingInvoices ?? []).map((inv) => ({
+      key: inv._id,
+      no: inv.invoiceId || inv._id.slice(-8),
+      date: formatDate(inv.issuedAt),
+      description: inv.description || 'Sartor subscription',
+      amount: inv.amount ?? 0,
+      dueIn: dueInLabel(inv),
+      status: mapBillingStatus(inv.status),
+      statusLabel: inv.status || 'Pending',
+      api: true as const,
+    }));
+  }, [billingInvoices]);
+
+  const nextDueInvoice = useMemo(() => {
+    const unpaid = (billingInvoices ?? []).filter((inv) => {
+      const s = String(inv.status || '').toLowerCase();
+      return s !== 'paid' && s !== 'cancelled';
+    });
+    unpaid.sort((a, b) => {
+      const da = a.dueAt ? new Date(a.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+      const db = b.dueAt ? new Date(b.dueAt).getTime() : Number.MAX_SAFE_INTEGER;
+      return da - db;
+    });
+    return unpaid[0] ?? null;
+  }, [billingInvoices]);
+
+  const planPrice =
+    tier === '360'
+      ? TIER_PRICING['360'].flatMo
+      : tier === 'snp'
+        ? TIER_PRICING.snp.revSeatMo
+        : TIER_PRICING.sn.revSeatMo;
+  const planHalf = tier === '360' ? Math.round(TIER_PRICING['360'].flatMo / 2) : null;
+  const amountDue = nextDueInvoice?.amount ?? (tier === '360' ? planPrice : null);
+  const renewalLabel = nextDueInvoice ? dueInLabel(nextDueInvoice) : '—';
 
   const navItems = useMemo(() => {
     const items: SettingsPanel[] = [];
@@ -94,84 +192,114 @@ export default function SettingsPage() {
                   staff to warehouses. Each user occupies one seat on your billing plan.
                 </div>
               </div>
-              <div className="tw">
-                <table style={{ fontSize: 13 }}>
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Role</th>
-                      <th>Warehouse</th>
-                      <th>Commission</th>
-                      <th>Seats</th>
-                      <th>Status</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>
-                        <strong>Nwachukwu Confidence</strong>{' '}
-                        <span style={{ fontSize: 10, color: 'var(--tx3)' }}>(You)</span>
-                      </td>
-                      <td>
-                        <Badge variant="navy">CEO / MD</Badge>
-                      </td>
-                      <td>—</td>
-                      <td>—</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>1</td>
-                      <td>
-                        <Badge variant="green">Active</Badge>
-                      </td>
-                      <td>—</td>
-                    </tr>
-                    <tr>
-                      <td>
-                        <strong>Abubakar Idah</strong>
-                      </td>
-                      <td>
-                        <Badge variant="blue">Admin</Badge>
-                      </td>
-                      <td>—</td>
-                      <td>3.5%</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>1</td>
-                      <td>
-                        <Badge variant="green">Active</Badge>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', gap: 5 }}>
-                          <Button variant="outline" size="xs" onClick={() => openModal('invite-user')}>
-                            Edit
-                          </Button>
-                          <Button variant="secondary" size="xs" onClick={() => openModal('set-commission')}>
-                            Rate
-                          </Button>
-                          <Button variant="danger" size="xs" onClick={() => save('User deactivated. Seat freed.')}>
-                            Deactivate
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              <div
-                style={{
-                  marginTop: 12,
-                  padding: '10px 14px',
-                  background: 'var(--bg)',
-                  borderRadius: 7,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                }}
+              <QueryState
+                loading={usersLoading}
+                error={usersError}
+                empty={!members?.length}
+                emptyMessage="No team members found. Only account owners can list users."
               >
-                <span style={{ fontSize: 12, color: 'var(--tx3)' }}>
-                  Active Seats: <strong style={{ color: 'var(--N)' }}>9 / 9</strong> — CRM 360 plan
-                </span>
-                <Button size="sm" onClick={() => setActive('billing')}>
-                  Manage Seats & Billing →
-                </Button>
-              </div>
+                <div className="tw">
+                  <table style={{ fontSize: 13 }}>
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>Warehouse</th>
+                        <th>Commission</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(members ?? []).map((m) => {
+                        const inactive = m.blocked || m.isDisabled;
+                        const you = isCurrentUser(m);
+                        const noCommission =
+                          m.isOwner ||
+                          /warehouse|inventory|driver|merch|owner|ceo/i.test(m.role || '');
+                        return (
+                          <tr key={m._id}>
+                            <td>
+                              <strong>{m.fullName || '—'}</strong>
+                              {you ? (
+                                <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
+                                  (You)
+                                </span>
+                              ) : null}
+                              {m.isOwner && !you ? (
+                                <span style={{ marginLeft: 6, fontSize: 10, color: 'var(--tx3)' }}>
+                                  Owner
+                                </span>
+                              ) : null}
+                            </td>
+                            <td>
+                              <Badge variant={roleVariant(m.role)}>
+                                {m.role || m.consoleRole || '—'}
+                              </Badge>
+                            </td>
+                            <td>—</td>
+                            <td>—</td>
+                            <td>
+                              <Badge variant={inactive ? 'amber' : 'green'}>
+                                {inactive ? 'Inactive' : 'Active'}
+                              </Badge>
+                            </td>
+                            <td>
+                              {you || m.isOwner ? (
+                                '—'
+                              ) : (
+                                <div style={{ display: 'flex', gap: 5 }}>
+                                  <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => openModal('invite-user', { user: m })}
+                                  >
+                                    Edit
+                                  </Button>
+                                  {!noCommission && (
+                                    <Button
+                                      variant="secondary"
+                                      size="xs"
+                                      onClick={() => openModal('set-commission', { user: m })}
+                                    >
+                                      Rate
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="danger"
+                                    size="xs"
+                                    onClick={() => save('User deactivated. Seat freed.')}
+                                  >
+                                    Deactivate
+                                  </Button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div
+                  style={{
+                    marginTop: 12,
+                    padding: '10px 14px',
+                    background: 'var(--bg)',
+                    borderRadius: 7,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span style={{ fontSize: 12, color: 'var(--tx3)' }}>
+                    Active seats: <strong style={{ color: 'var(--N)' }}>{activeSeats}</strong>
+                  </span>
+                  <Button size="sm" onClick={() => setActive('billing')}>
+                    Manage Seats & Billing →
+                  </Button>
+                </div>
+              </QueryState>
           </Panel>
 
           <Panel id="thresholds" active={active}>
@@ -272,27 +400,8 @@ export default function SettingsPage() {
                   + Add Category
                 </Button>
               </div>
-              <div className="cat-row">
-                <span className="cat-name">Personal Care</span>
-                <Badge variant="green" style={{ fontSize: 10 }}>
-                  4 products — VAT 7.5%
-                </Badge>
-                <div className="cat-acts">
-                  <Button variant="secondary" size="xs" onClick={() => openModal('add-category')}>
-                    Edit
-                  </Button>
-                </div>
-              </div>
-              <div className="cat-row">
-                <span className="cat-name">Health Products (Pharma)</span>
-                <Badge variant="blue" style={{ fontSize: 10 }}>
-                  0 products — VAT Exempt
-                </Badge>
-                <div className="cat-acts">
-                  <Button variant="secondary" size="xs" onClick={() => openModal('add-category')}>
-                    Edit
-                  </Button>
-                </div>
+              <div style={{ padding: '28px 8px', textAlign: 'center', color: 'var(--tx3)', fontSize: 13 }}>
+                No product categories configured yet. Add a category to organise your catalogue.
               </div>
           </Panel>
 
@@ -342,13 +451,16 @@ export default function SettingsPage() {
           </Panel>
 
           <Panel id="billing" active={active}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--N)', fontFamily: "'Fraunces', serif", marginBottom: 4 }}>
-                Subscription & Billing
-              </h3>
-              <p style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 16 }}>
-                SartorCRM charges per seat per tier. Every active user account is one seat. Deactivating a user frees the
-                seat immediately.
-              </p>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--N)', fontFamily: "'Fraunces', serif", marginBottom: 4 }}>
+                  Subscription & Billing
+                </h3>
+                <p style={{ fontSize: 12, color: 'var(--tx3)' }}>
+                  Your Sartor Limited subscription. Upgrade your tier or switch billing cycle at any time — changes take
+                  effect at your next renewal.
+                </p>
+              </div>
+
               <div
                 style={{
                   background: 'linear-gradient(135deg,var(--N),#0000A8)',
@@ -358,286 +470,279 @@ export default function SettingsPage() {
                   marginBottom: 16,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 4 }}>
+                  Current Plan · {TIER_LABELS[tier]}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 4 }}>
-                      Current Plan
-                    </div>
-                    <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700 }}>CRM 360</div>
+                    <div style={{ fontFamily: "'Fraunces', serif", fontSize: 22, fontWeight: 700 }}>{TIER_LABELS[tier]}</div>
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', marginTop: 4 }}>
-                      Full platform — SartorChain, DORA AI, Field Intel, GRN, Reconciliation
+                      {tier === '360'
+                        ? 'Full platform · Unlimited users · Flat fee'
+                        : tier === 'snp'
+                          ? 'Revenue + operational seats'
+                          : 'Per revenue seat'}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: 'rgba(255,255,255,.5)', textTransform: 'uppercase', letterSpacing: '.6px', marginBottom: 4 }}>
-                      Per Seat / Month
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 10, color: 'rgba(255,255,255,.5)', marginBottom: 2 }}>
+                      {tier === '360' ? 'Monthly Total' : 'From'}
                     </div>
-                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 24, fontWeight: 700, color: 'var(--G)' }}>
-                      ₦25,000
+                    <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 24, fontWeight: 700 }}>
+                      {formatNaira(planPrice)}
+                      {tier === '360' ? '/mo' : '/seat/mo'}
                     </div>
                   </div>
                 </div>
-                <div
-                  style={{
-                    marginTop: 16,
-                    background: 'rgba(255,255,255,.08)',
-                    borderRadius: 8,
-                    padding: '12px 16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexWrap: 'wrap',
-                    gap: 10,
-                  }}
-                >
-                  <div className="flex-stats">
-                    <div className="flex-stats-col">
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: 'var(--G)' }}>9</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.5)' }}>Active Seats</div>
+                {tier === '360' && planHalf != null && (
+                  <div style={{ background: 'rgba(255,255,255,.08)', borderRadius: 8, padding: '12px 14px', marginBottom: 10, fontSize: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: '1px solid rgba(255,255,255,.1)' }}>
+                      <span style={{ color: 'rgba(255,255,255,.65)' }}>SC + DORA AI deployment (Year 1)</span>
+                      <span style={{ fontFamily: "'DM Mono',monospace" }}>{formatNaira(planHalf)}</span>
                     </div>
-                    <div className="flex-stats-col">
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700 }}>₦225,000</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.5)' }}>Monthly Total</div>
-                    </div>
-                    <div className="flex-stats-col">
-                      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 22, fontWeight: 700, color: '#7EC8FF' }}>19</div>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,.5)' }}>Days to Renewal</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0' }}>
+                      <span style={{ color: 'rgba(255,255,255,.65)' }}>CRM 360 subscription</span>
+                      <span style={{ fontFamily: "'DM Mono',monospace" }}>{formatNaira(planHalf)}</span>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <Button variant="green" size="sm" onClick={() => save('Annual billing saves ₦540,000 per year. Contact billing@sartor.ng to switch.')}>
-                      Switch to Annual (Save 20%)
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      style={{ color: 'rgba(255,255,255,.7)', borderColor: 'rgba(255,255,255,.2)' }}
-                      onClick={() => save('Contact billing@sartor.ng to change plans.')}
-                    >
-                      Change Plan
-                    </Button>
-                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <Button variant="green" size="sm" onClick={() => openModal('billing-cycle')}>
+                    Switch to Annual (Save 20%)
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openModal('change-plan')}>
+                    Upgrade / Change Tier
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openModal('pilot-convert')}
+                  >
+                    Convert Pilot →
+                  </Button>
                 </div>
               </div>
 
-              <div className="sdiv-label">Plan Comparison — Per Seat / Month</div>
-              <div className="grid-3-col">
-                <div style={{ border: '1px solid var(--brd)', borderRadius: 9, padding: 14, background: 'var(--bg)' }}>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 700, color: 'var(--tx2)', marginBottom: 4 }}>
-                    Sales Navigator
+              <div
+                style={{
+                  background: 'var(--bg)',
+                  border: '1px solid var(--brd)',
+                  borderRadius: 9,
+                  padding: '13px 16px',
+                  marginBottom: 18,
+                  display: 'flex',
+                  gap: 20,
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>
+                    Next Renewal
                   </div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 700, color: 'var(--N)', marginBottom: 8 }}>
-                    ₦5,000<span style={{ fontSize: 11, color: 'var(--tx3)', fontFamily: 'inherit', fontWeight: 400 }}>/seat/mo</span>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color: 'var(--N)' }}>
+                    {renewalLabel}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>
+                    Amount Due
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 16, fontWeight: 700, color: 'var(--N)' }}>
+                    {amountDue != null ? formatNaira(amountDue) : '—'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 3 }}>
+                    Billing Cycle
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--N)' }}>Monthly</div>
+                </div>
+              </div>
+              <div className="sdiv-label">Invoices — Payable to Sartor Limited</div>
+              <p style={{ fontSize: 11, color: 'var(--tx3)', marginBottom: 10 }}>
+                Your subscription invoices from Sartor Limited. Separate from the invoices you issue to your own customers.
+              </p>
+              <div className="tw" style={{ marginBottom: 18 }}>
+                <table className="resp" style={{ fontSize: 12 }}>
+                  <thead>
+                    <tr>
+                      <th>Invoice</th>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th>Amount</th>
+                      <th>Due In</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {billingLoading && !billingInvoices ? (
+                      <tr>
+                        <td colSpan={7} style={{ color: 'var(--tx3)' }}>
+                          Loading invoices…
+                        </td>
+                      </tr>
+                    ) : billingRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} style={{ color: 'var(--tx3)' }}>
+                          No subscription invoices yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      billingRows.map((inv) => (
+                        <tr key={inv.key}>
+                          <td style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>{inv.no}</td>
+                          <td>{inv.date}</td>
+                          <td>{inv.description}</td>
+                          <td style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>
+                            {formatNaira(inv.amount)}
+                          </td>
+                          <td>{inv.dueIn}</td>
+                          <td>
+                            <Badge variant={billingInvoiceVariant(inv.statusLabel)}>
+                              {inv.statusLabel}
+                            </Badge>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                              <Button
+                                variant="outline"
+                                size="xs"
+                                onClick={() => openSartorInvoice(inv.no)}
+                              >
+                                View
+                              </Button>
+                              {inv.status !== 'paid' && (
+                                <Button
+                                  variant="green"
+                                  size="xs"
+                                  onClick={() => openSartorInvoice(inv.no)}
+                                >
+                                  Pay
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="sdiv-label">Plan Comparison & Upgrade Path</div>
+              <div className="billing-compare-grid" style={{ marginBottom: 16 }}>
+                <div style={{ border: '1px solid var(--brd)', borderRadius: 9, padding: 14, background: 'var(--bg)' }}>
+                  <div style={{ fontFamily: "'Fraunces',serif", fontSize: 13, fontWeight: 700, color: 'var(--tx2)', marginBottom: 2 }}>
+                    {TIER_LABELS.sn}
+                  </div>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 7 }}>
+                    T1 · Per revenue seat
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 17, fontWeight: 700, color: 'var(--N)' }}>
+                    {formatNaira(TIER_PRICING.sn.revSeatMo)}
+                    <span style={{ fontSize: 10, fontWeight: 400, color: 'var(--tx3)' }}>/seat/mo</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--tx3)', marginBottom: 8 }}>
+                    {formatNaira(TIER_PRICING.sn.revSeatAnn)}/seat annual · Min {TIER_PRICING.sn.minSeats} seats
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--tx3)', lineHeight: 1.8 }}>
-                    Leads, Customers, LPOs
+                    Pipeline & Leads
                     <br />
-                    Basic Sales Reporting
+                    Customer Management
                     <br />
-                    My Commissions
+                    LPOs & Invoices
                     <br />
-                    <span style={{ color: 'var(--rt)' }}>No Invoices, No WH, No DORA</span>
+                    <span style={{ color: 'var(--rt)' }}>
+                      No WH / Drivers / GRN
+                      <br />
+                      No Sartor-Chain / DORA AI
+                    </span>
                   </div>
                 </div>
                 <div style={{ border: '1px solid var(--pur)', borderRadius: 9, padding: 14, background: 'var(--pb)' }}>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 700, color: 'var(--pt)', marginBottom: 4 }}>
-                    Sales Nav Plus
+                  <div style={{ fontFamily: "'Fraunces',serif", fontSize: 13, fontWeight: 700, color: 'var(--pt)', marginBottom: 2 }}>
+                    {TIER_LABELS.snp}
                   </div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 700, color: 'var(--pt)', marginBottom: 8 }}>
-                    ₦12,000<span style={{ fontSize: 11, color: 'var(--pt)', fontFamily: 'inherit', fontWeight: 400, opacity: 0.7 }}>/seat/mo</span>
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--pt)', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 7 }}>
+                    T2 · Revenue + Operational seats
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--pt)', opacity: 0.8, lineHeight: 1.8 }}>
-                    Everything in SN +
-                    <br />
-                    Invoices & Collections
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 15, fontWeight: 700, color: 'var(--pt)' }}>
+                    {formatNaira(TIER_PRICING.snp.revSeatMo)}
+                    <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>/revenue seat/mo</span>
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700, color: 'var(--pt)' }}>
+                    {formatNaira(TIER_PRICING.snp.opSeatMo)}
+                    <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.7 }}>/operational seat/mo</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--pt)', opacity: 0.7, marginBottom: 8 }}>
+                    Annual: {formatNaira(TIER_PRICING.snp.revSeatAnn)} / {formatNaira(TIER_PRICING.snp.opSeatAnn)} · Min{' '}
+                    {TIER_PRICING.snp.minSeats} seats
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--pt)', opacity: 0.85, lineHeight: 1.8 }}>
+                    Everything in Field +
                     <br />
                     Warehouses & Drivers
                     <br />
-                    Product Catalog
+                    GRN · Supplier Mgmt
                     <br />
-                    <span style={{ opacity: 0.6 }}>No SartorChain / DORA</span>
+                    <span style={{ opacity: 0.6 }}>No Sartor-Chain / DORA AI</span>
                   </div>
                 </div>
                 <div style={{ border: '2px solid var(--G)', borderRadius: 9, padding: 14, background: '#E6FAF0', position: 'relative' }}>
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: -10,
-                      right: 12,
-                      background: 'var(--G)',
-                      color: '#000',
-                      fontSize: 9,
-                      fontWeight: 800,
-                      padding: '2px 8px',
-                      borderRadius: 10,
-                      textTransform: 'uppercase',
-                      letterSpacing: '.5px',
-                    }}
-                  >
-                    Current Plan
+                  {tier === '360' && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: -10,
+                        right: 12,
+                        background: 'var(--G)',
+                        color: '#000',
+                        fontSize: 9,
+                        fontWeight: 800,
+                        padding: '2px 8px',
+                        borderRadius: 10,
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Current
+                    </div>
+                  )}
+                  <div style={{ fontFamily: "'Fraunces',serif", fontSize: 13, fontWeight: 700, color: 'var(--Gd)', marginBottom: 2 }}>
+                    {TIER_LABELS['360']}
                   </div>
-                  <div style={{ fontFamily: "'Fraunces', serif", fontSize: 14, fontWeight: 700, color: 'var(--Gd)', marginBottom: 4 }}>
-                    CRM 360
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--Gd)', textTransform: 'uppercase', letterSpacing: '.3px', marginBottom: 7 }}>
+                    T3 · Flat fee · Unlimited users
                   </div>
-                  <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 20, fontWeight: 700, color: 'var(--Gd)', marginBottom: 8 }}>
-                    ₦25,000<span style={{ fontSize: 11, fontFamily: 'inherit', fontWeight: 400, opacity: 0.7 }}>/seat/mo</span>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--Gd)', marginBottom: 2 }}>Monthly (no discount):</div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, color: 'var(--Gd)' }}>
+                    {formatNaira(Math.round(TIER_PRICING['360'].flatMo / 2))} +{' '}
+                    {formatNaira(Math.round(TIER_PRICING['360'].flatMo / 2))} ={' '}
+                    {formatNaira(TIER_PRICING['360'].flatMo)}/mo
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--Gd)', lineHeight: 1.8 }}>
-                    Everything in SNP +
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--Gd)', marginTop: 4, marginBottom: 2 }}>
+                    Annual lump sum (20% off):
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 12, fontWeight: 700, color: 'var(--Gd)' }}>
+                    {formatNaira(Math.round(TIER_PRICING['360'].flatAnn / 2))} +{' '}
+                    {formatNaira(Math.round(TIER_PRICING['360'].flatAnn / 2))} ={' '}
+                    {formatNaira(TIER_PRICING['360'].flatAnn)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--Gd)', marginTop: 8, lineHeight: 1.8 }}>
+                    Everything in Depot +
                     <br />
-                    SartorChain + DORA AI
+                    Sartor-Chain + DORA AI
                     <br />
-                    GRN & Stock Reconciliation
+                    Stock Reconciliation
                     <br />
                     Field Intelligence
                     <br />
-                    Supplier Management
-                    <br />
-                    VAT & P&L Reports
+                    <strong>No per-seat charge ever</strong>
                   </div>
                 </div>
               </div>
 
-              <div className="sdiv-label">Active Seats</div>
-              <div className="tw">
-                <table style={{ fontSize: 12 }}>
-                  <thead>
-                    <tr>
-                      <th>User</th>
-                      <th>Role</th>
-                      <th>Seat Added</th>
-                      <th>Cost/Month</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>Nwachukwu Confidence</td>
-                      <td>CEO</td>
-                      <td>1 Jan 2026</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦25,000</td>
-                      <td style={{ color: 'var(--tx3)', fontSize: 11 }}>Owner seat</td>
-                    </tr>
-                    <tr>
-                      <td>Abubakar Idah</td>
-                      <td>Admin</td>
-                      <td>15 Jan 2026</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦25,000</td>
-                      <td>
-                        <Button variant="danger" size="xs" onClick={() => save('Seat removed. Billing adjusted from next cycle.')}>
-                          Remove Seat
-                        </Button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Emmanuel Batimehin</td>
-                      <td>Sales Rep</td>
-                      <td>15 Jan 2026</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦25,000</td>
-                      <td>
-                        <Button variant="danger" size="xs" onClick={() => save('Seat removed. Billing adjusted from next cycle.')}>
-                          Remove Seat
-                        </Button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Samuel Okon</td>
-                      <td>Sales Rep</td>
-                      <td>1 Feb 2026</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦25,000</td>
-                      <td>
-                        <Button variant="danger" size="xs" onClick={() => save('Seat removed. Billing adjusted from next cycle.')}>
-                          Remove Seat
-                        </Button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Okeke David</td>
-                      <td>Finance Manager</td>
-                      <td>1 Feb 2026</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦25,000</td>
-                      <td>
-                        <Button variant="danger" size="xs" onClick={() => save('Seat removed. Billing adjusted from next cycle.')}>
-                          Remove Seat
-                        </Button>
-                      </td>
-                    </tr>
-                    <tr style={{ background: 'var(--Gb)' }}>
-                      <td colSpan={3} style={{ fontWeight: 700, color: 'var(--Gd)' }}>
-                        Monthly Total
-                      </td>
-                      <td style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: 'var(--Gd)' }}>₦225,000</td>
-                      <td>
-                        <Button variant="green" size="sm" onClick={() => openModal('invite-user')}>
-                          + Add Seat
-                        </Button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="sdiv-label" style={{ marginTop: 20 }}>
-                Billing History
-              </div>
-              <div className="tw">
-                <table style={{ fontSize: 12 }}>
-                  <thead>
-                    <tr>
-                      <th>Period</th>
-                      <th>Plan</th>
-                      <th>Seats</th>
-                      <th>Amount</th>
-                      <th>Status</th>
-                      <th>Receipt</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td>May 2026</td>
-                      <td>CRM 360</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>9</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦225,000</td>
-                      <td>
-                        <Badge variant="amber">Due 31 May</Badge>
-                      </td>
-                      <td>
-                        <Button variant="outline" size="xs" onClick={() => save('Downloading invoice…')}>
-                          Invoice
-                        </Button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Apr 2026</td>
-                      <td>CRM 360</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>8</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦200,000</td>
-                      <td>
-                        <Badge variant="green">Paid</Badge>
-                      </td>
-                      <td>
-                        <Button variant="outline" size="xs" onClick={() => save('Downloading receipt…')}>
-                          Receipt
-                        </Button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td>Mar 2026</td>
-                      <td>CRM 360</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>7</td>
-                      <td style={{ fontFamily: "'DM Mono', monospace" }}>₦175,000</td>
-                      <td>
-                        <Badge variant="green">Paid</Badge>
-                      </td>
-                      <td>
-                        <Button variant="outline" size="xs" onClick={() => save('Downloading receipt…')}>
-                          Receipt
-                        </Button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
               <div style={{ marginTop: 12, padding: '10px 14px', background: 'var(--bg)', borderRadius: 7, fontSize: 12, color: 'var(--tx3)' }}>
                 Questions about billing? Contact{' '}
                 <a href="mailto:billing@sartor.ng" style={{ color: 'var(--N)', fontWeight: 600 }}>
