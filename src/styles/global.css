@@ -1,4 +1,12 @@
-*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* Box model everywhere. Zero margin/padding for the CRM console + login only —
+   NOT inside .landing-root, or Tailwind mx-auto / spacing utilities get wiped
+   by this unlayered reset (cascade: unlayered beats @layer utilities). */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+*:where(:not(.landing-root, .landing-root *)){margin:0;padding:0}
+html,body,#root{margin:0;padding:0;height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--bg);color:var(--tx);overflow:hidden}
+a{text-decoration:none;color:inherit}
+button,input,select,textarea{font:inherit}
+button{outline:none;cursor:pointer}
 :root{
   --N:#000068;--N2:#0000A0;--G:#00B341;--G2:#00D44D;--Gb:#E6FAF0;--Gd:#007A2D;
   --bg:#F0F3FA;--bg2:#E4E8F5;--bg3:#D8DDEF;--tx:#030320;--tx2:#1E2060;--tx3:#8090B8;
@@ -11,7 +19,6 @@
   --sh:0 1px 3px rgba(0,0,80,.08),0 1px 2px rgba(0,0,80,.05);
   --shm:0 8px 24px rgba(0,0,80,.15);
 }
-html,body,#root{height:100%;font-family:'DM Sans',sans-serif;font-size:14px;background:var(--bg);color:var(--tx);overflow:hidden}
 
 /* ROLE/TIER BAR */
 #rbar{height:var(--rbh);background:#00002E;padding:0 12px;display:flex;align-items:center;gap:3px;overflow-x:auto;overflow-y:hidden;flex-shrink:0}
@@ -148,7 +155,7 @@ tr.hidden{display:none}
 .dd-item .ddi{font-size:13px;width:16px;text-align:center}
 
 /* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .14s;white-space:nowrap;text-decoration:none}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;outline:none;box-shadow:none;font-family:inherit;transition:all .14s;white-space:nowrap;text-decoration:none;-webkit-appearance:none;appearance:none}
 .bpri{background:var(--N);color:#fff}.bpri:hover{background:var(--N2)}
 .bgrn{background:var(--G);color:#000;font-weight:700}.bgrn:hover{background:var(--G2)}
 .bsec{background:var(--bg2);color:var(--tx2);border:1px solid var(--brd)}.bsec:hover{background:var(--bg3)}

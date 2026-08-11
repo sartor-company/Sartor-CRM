@@ -11,9 +11,15 @@ export const apiClient = axios.create({
 
 let handlingSessionExpiry = false;
 
+function isPublicPath(pathname: string) {
+  return pathname === '/' || pathname === '/login';
+}
+
 function handleSessionExpired(serverMessage?: string) {
   if (handlingSessionExpiry) return;
-  if (window.location.pathname.startsWith('/login')) return;
+  // Anonymous 401s on public pages (landing/login) must not force a login loop.
+  if (!useAuthStore.getState().token) return;
+  if (isPublicPath(window.location.pathname)) return;
   handlingSessionExpiry = true;
 
   notifySessionExpired(serverMessage);

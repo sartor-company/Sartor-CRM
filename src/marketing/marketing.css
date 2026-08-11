@@ -1,0 +1,258 @@
+/* Landing-only tokens + Tailwind (scoped; console styles stay intact) */
+
+.landing-root {
+  --navy: #0b1640;
+  --navy-mid: #0f1e55;
+  --navy-light: #162566;
+  --orange: #ff5c35;
+  --orange-dim: #cc4829;
+  --green: #1db87a;
+  --green-dim: #16945f;
+  --white: #ffffff;
+  --text-muted: #8a92b2;
+  --text-mid: #c2c8e0;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-light: rgba(255, 255, 255, 0.14);
+  --card-bg: rgba(255, 255, 255, 0.04);
+  --card-bg-hover: rgba(255, 255, 255, 0.07);
+  --radius: 12px;
+  --radius-lg: 20px;
+  --t: 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+
+  min-height: 100vh;
+  font-family: 'DM Sans', sans-serif;
+  background-color: var(--navy);
+  color: var(--white);
+  overflow-x: hidden;
+  line-height: 1.65;
+  transition: background var(--t), color var(--t);
+  -webkit-font-smoothing: antialiased;
+}
+
+html[data-theme='light'] .landing-root {
+  --navy: #f0f2fa;
+  --navy-mid: #e4e8f5;
+  --navy-light: #d8dded;
+  --text-muted: #6b74a0;
+  --text-mid: #3b4270;
+  --border: rgba(11, 22, 64, 0.08);
+  --border-light: rgba(11, 22, 64, 0.14);
+  --card-bg: rgba(11, 22, 64, 0.03);
+  --card-bg-hover: rgba(11, 22, 64, 0.06);
+  --white: #0b1640;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Mini-preflight in @layer base so utility / component backgrounds can override it.
+ * (Unlayered button { background: transparent } was wiping solid orange CTAs.)
+ */
+@layer base {
+  .landing-root *,
+  .landing-root *::before,
+  .landing-root *::after {
+    box-sizing: border-box;
+    border-width: 0;
+    border-style: solid;
+    border-color: var(--border);
+  }
+
+  .landing-root a,
+  .landing-root a:visited,
+  .landing-root a:hover,
+  .landing-root a:active {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .landing-root button,
+  .landing-root input,
+  .landing-root optgroup,
+  .landing-root select,
+  .landing-root textarea {
+    font-family: inherit;
+    font-size: 100%;
+    font-weight: inherit;
+    line-height: inherit;
+    color: inherit;
+    margin: 0;
+    padding: 0;
+    background-color: transparent;
+    background-image: none;
+    border: 0 solid transparent;
+    outline: none;
+    box-shadow: none;
+  }
+
+  .landing-root button,
+  .landing-root [type='button'],
+  .landing-root [type='reset'],
+  .landing-root [type='submit'] {
+    cursor: pointer;
+  }
+
+  .landing-root button:focus,
+  .landing-root button:focus-visible,
+  .landing-root a:focus,
+  .landing-root a:focus-visible {
+    outline: none;
+  }
+
+  .landing-root img,
+  .landing-root svg,
+  .landing-root video,
+  .landing-root canvas {
+    display: block;
+    max-width: 100%;
+  }
+
+  .landing-root ol,
+  .landing-root ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .landing-root h1,
+  .landing-root h2,
+  .landing-root h3,
+  .landing-root h4 {
+    margin: 0;
+  }
+}
+
+@layer components {
+  .landing-root .reveal {
+    @apply opacity-0 translate-y-6 transition-all duration-700 ease-out;
+  }
+
+  .landing-root .reveal.visible {
+    @apply opacity-100 translate-y-0;
+  }
+
+  .landing-root .hero-grid-pattern {
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, black 20%, transparent 100%);
+    -webkit-mask-image: radial-gradient(
+      ellipse 80% 70% at 50% 40%,
+      black 20%,
+      transparent 100%
+    );
+  }
+
+  .landing-root .cta-radial-bg {
+    background: radial-gradient(
+      ellipse 60% 80% at 50% 50%,
+      rgba(255, 92, 53, 0.07) 0%,
+      transparent 70%
+    );
+  }
+
+  /* Solid orange CTAs — matches old landing (navbar + hero) */
+  .landing-root .btn-pilot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background-color: var(--orange) !important;
+    color: #fff !important;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    border-radius: 8px;
+    border: none !important;
+    outline: none;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: background-color 220ms cubic-bezier(0.4, 0, 0.2, 1), transform 220ms;
+  }
+
+  .landing-root .btn-pilot:hover {
+    background-color: var(--orange-dim) !important;
+  }
+
+  .landing-root .btn-pilot:active {
+    transform: translateY(-1px);
+  }
+
+  .landing-root .btn-pilot-nav {
+    padding: 10px 22px !important;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  @media (max-width: 640px) {
+    .landing-root .btn-pilot-nav {
+      padding: 10px 16px !important;
+      font-size: 13px;
+    }
+  }
+
+  .landing-root .btn-pilot-hero {
+    padding: 14px 32px !important;
+    font-size: 16px;
+    border-radius: 10px;
+  }
+
+  .landing-root .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 14px 32px !important;
+    background: transparent !important;
+    color: var(--white) !important;
+    border: 1px solid var(--border-light) !important;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    text-decoration: none !important;
+    cursor: pointer;
+    transition: background-color 220ms, border-color 220ms;
+  }
+
+  .landing-root .btn-ghost:hover {
+    background: var(--card-bg) !important;
+    border-color: rgba(255, 255, 255, 0.25) !important;
+  }
+}
+
+/* Unlayered hero layout insurance (matches old design spacing) */
+.landing-root .hero-inner {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.landing-root .hero-inner > h1 {
+  margin-top: 0;
+  margin-bottom: 1.5rem; /* space above lead copy */
+}
+
+.landing-root .hero-lead {
+  max-width: 620px;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 0;
+  margin-bottom: 2.5rem; /* space below lead before CTAs — was collapsing */
+  text-align: center;
+  line-height: 1.75;
+}
+
+.landing-root .hero-cta-row {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.landing-root .preview-card-wrap {
+  padding-top: 48px;
+}
+
+.landing-root .preview-browser-bar {
+  padding: 14px 18px;
+}

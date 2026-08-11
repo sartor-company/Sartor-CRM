@@ -6,6 +6,7 @@ import { SartorModal } from '../components/ui/SartorModal';
 import { billingApi, type PlatformInvoice } from '../api/billing';
 import { TIER_LABELS, TIER_PRICING } from '../constants/tiers';
 import { formatNaira, usePaymentIntent } from '../context/PaymentIntentContext';
+import { useAuthStore } from '../store/authStore';
 import type { TierId } from '../types';
 import { formatDate } from '../utils/format';
 import { FG, FRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
@@ -65,6 +66,7 @@ export function BillingModals() {
   const [convBilling, setConvBilling] = useState<BillingCycle>('monthly');
 
   useEffect(() => {
+    if (!useAuthStore.getState().token) return;
     let cancelled = false;
     void billingApi
       .listInvoices()

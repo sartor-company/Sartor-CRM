@@ -184,7 +184,7 @@ export default function RedeemGiftPage() {
   });
 
   if (!showGiftRedeem) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return (

@@ -3,7 +3,7 @@ import { getDefaultPageForRole } from './nav';
 import type { RoleId } from '../types';
 
 export const PAGE_PATHS: Record<PageId, string> = {
-  dash: '/',
+  dash: '/dashboard',
   'merch-dash': '/field',
   pipeline: '/pipeline',
   leads: '/leads',

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { catalogApi, type ApiProduct, type ApiSupplier } from '../api/catalog';
 import { crmApi, leadName, type CrmCustomer, type CrmInvoice, type CrmLead } from '../api/crm';
 import { opsApi, type OpsDriver, type OpsWarehouse } from '../api/ops';
+import { useAuthStore } from '../store/authStore';
 
 export function productLabel(p: ApiProduct) {
   const sku = p.skuCode || p.productId || p._id.slice(-6);
@@ -24,6 +25,8 @@ export function useLiveOptions(enabled = true) {
 
   useEffect(() => {
     if (!enabled) return;
+    const token = useAuthStore.getState().token;
+    if (!token) return;
     let cancelled = false;
     setLoading(true);
     void Promise.all([
