@@ -1,37 +1,41 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { IconLabel } from '../components/ui/Icon';
 import { SartorModal } from '../components/ui/SartorModal';
 import type { ApiSupplier } from '../api/catalog';
 import { opsApi } from '../api/ops';
 import type { ApiTeamUser } from '../api/team';
+import { SN_TIER_ROLES } from '../constants/roles';
+import { useApp } from '../context/AppContext';
 import { useLiveOptions } from '../hooks/useLiveOptions';
+import type { RoleId } from '../types';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
-const INVITE_ROLES = [
+const INVITE_ROLES: { value: RoleId; label: string }[] = [
   { value: 'admin', label: 'Admin' },
-  { value: 'rep', label: 'Sales Rep' },
+  { value: 'rep', label: 'Sales Representative' },
   { value: 'finance', label: 'Finance Manager' },
+  { value: 'merch', label: 'Merchandiser' },
   { value: 'inv', label: 'Inventory Officer' },
   { value: 'wh', label: 'Warehouse Manager' },
   { value: 'driver', label: 'Driver' },
-  { value: 'merch', label: 'Merchandiser' },
 ];
 
 function roleSelectValue(role?: string) {
   const r = (role || '').toLowerCase();
-  if (r.includes('admin')) return 'admin';
-  if (r.includes('rep') || r.includes('sales')) return 'rep';
-  if (r.includes('finance')) return 'finance';
-  if (r.includes('inv') || r.includes('inventory')) return 'inv';
-  if (r.includes('warehouse') || r === 'wh') return 'wh';
-  if (r.includes('driver')) return 'driver';
-  if (r.includes('merch')) return 'merch';
+  if (r === 'admin' || r.includes('admin')) return 'admin';
+  if (r === 'rep' || r.includes('rep') || r.includes('sales')) return 'rep';
+  if (r === 'finance' || r.includes('finance')) return 'finance';
+  if (r === 'inv' || r.includes('inv') || r.includes('inventory')) return 'inv';
+  if (r === 'wh' || r.includes('warehouse')) return 'wh';
+  if (r === 'driver' || r.includes('driver')) return 'driver';
+  if (r === 'merch' || r.includes('merch')) return 'merch';
   return '';
 }
 
 export function SettingsModals() {
   const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
+  const { tier } = useApp();
   const { warehouses } = useLiveOptions(isOpen('invite-user') || isOpen('supplier-payment'));
   const supplier = getPayload<{ supplier?: ApiSupplier }>('supplier-payment')?.supplier;
   const inviteUser = getPayload<{ user?: ApiTeamUser }>('invite-user')?.user;
@@ -39,12 +43,27 @@ export function SettingsModals() {
   const [inviteRole, setInviteRole] = useState('');
   const [savingWh, setSavingWh] = useState(false);
 
+  const inviteRoles = useMemo(
+    () =>
+      INVITE_ROLES.filter((r) =>
+        tier === 'sn' ? SN_TIER_ROLES.includes(r.value) : true,
+      ),
+    [tier],
+  );
+
   const inviteOpen = isOpen('invite-user');
   useEffect(() => {
     if (inviteOpen) {
-      setInviteRole(roleSelectValue(inviteUser?.role || inviteUser?.consoleRole));
+      const resolved = roleSelectValue(
+        inviteUser?.userRole || inviteUser?.role || inviteUser?.consoleRole,
+      );
+      setInviteRole(
+        resolved && inviteRoles.some((r) => r.value === resolved)
+          ? resolved
+          : inviteRoles[0]?.value || '',
+      );
     }
-  }, [inviteOpen, inviteUser]);
+  }, [inviteOpen, inviteUser, inviteRoles]);
   const whNameRef = useRef<HTMLInputElement>(null);
   const whAddrRef = useRef<HTMLInputElement>(null);
   const whStateRef = useRef<HTMLSelectElement>(null);
@@ -137,7 +156,7 @@ export function SettingsModals() {
               onChange={(e) => setInviteRole(e.target.value)}
             >
               <option value="">Select role…</option>
-              {INVITE_ROLES.map((r) => (
+              {inviteRoles.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>

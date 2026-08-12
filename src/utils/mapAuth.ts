@@ -11,11 +11,20 @@ function resolveTier(raw: unknown): TierId {
 
 /**
  * Map backend account → CRM UI RoleId.
- * Finance & WH both use backend "Manager" — distinguish via permission flags.
+ * Prefer explicit userRole ids; fall back to role enum + permission flags.
  */
 export function resolveCrmRole(data: Record<string, unknown>): RoleId {
   const accountType = data.accountType as string;
   if (accountType === 'admin') return 'ceo';
+
+  const userRole = String(data.userRole || '').toLowerCase();
+  if (userRole === 'admin') return 'admin';
+  if (userRole === 'rep') return 'rep';
+  if (userRole === 'finance') return 'finance';
+  if (userRole === 'inv') return 'inv';
+  if (userRole === 'wh') return 'wh';
+  if (userRole === 'driver') return 'driver';
+  if (userRole === 'merch') return 'merch';
 
   const role = String(data.role || '');
   if (role === 'Admin') return 'admin';
