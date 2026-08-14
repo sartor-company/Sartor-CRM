@@ -18,6 +18,7 @@ export function resolveCrmRole(data: Record<string, unknown>): RoleId {
   if (accountType === 'admin') return 'ceo';
 
   const userRole = String(data.userRole || '').toLowerCase();
+  if (userRole === 'ceo') return 'ceo';
   if (userRole === 'admin') return 'admin';
   if (userRole === 'rep') return 'rep';
   if (userRole === 'finance') return 'finance';

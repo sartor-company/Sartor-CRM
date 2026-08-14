@@ -5,20 +5,19 @@ import { SartorModal } from '../components/ui/SartorModal';
 import type { ApiSupplier } from '../api/catalog';
 import { opsApi } from '../api/ops';
 import type { ApiTeamUser } from '../api/team';
-import { SN_TIER_ROLES } from '../constants/roles';
 import { useApp } from '../context/AppContext';
 import { useLiveOptions } from '../hooks/useLiveOptions';
 import type { RoleId } from '../types';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
-const INVITE_ROLES: { value: RoleId; label: string }[] = [
-  { value: 'admin', label: 'Admin' },
-  { value: 'rep', label: 'Sales Representative' },
-  { value: 'finance', label: 'Finance Manager' },
-  { value: 'merch', label: 'Merchandiser' },
-  { value: 'inv', label: 'Inventory Officer' },
-  { value: 'wh', label: 'Warehouse Manager' },
-  { value: 'driver', label: 'Driver' },
+const INVITE_ROLES: { value: RoleId; label: string; tiers: Array<'sn' | 'snp' | '360'> }[] = [
+  { value: 'admin', label: 'Admin', tiers: ['sn', 'snp', '360'] },
+  { value: 'rep', label: 'Sales Rep', tiers: ['sn', 'snp', '360'] },
+  { value: 'finance', label: 'Finance', tiers: ['sn', 'snp'] },
+  { value: 'merch', label: 'Merchandiser', tiers: ['sn', 'snp', '360'] },
+  { value: 'inv', label: 'Inventory Officer', tiers: ['snp', '360'] },
+  { value: 'wh', label: 'Warehouse Manager', tiers: ['snp', '360'] },
+  { value: 'driver', label: 'Driver', tiers: ['snp', '360'] },
 ];
 
 function roleSelectValue(role?: string) {
@@ -44,10 +43,7 @@ export function SettingsModals() {
   const [savingWh, setSavingWh] = useState(false);
 
   const inviteRoles = useMemo(
-    () =>
-      INVITE_ROLES.filter((r) =>
-        tier === 'sn' ? SN_TIER_ROLES.includes(r.value) : true,
-      ),
+    () => INVITE_ROLES.filter((r) => r.tiers.includes(tier)),
     [tier],
   );
 
