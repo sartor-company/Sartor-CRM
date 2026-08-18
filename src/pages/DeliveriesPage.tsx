@@ -1,4 +1,4 @@
-import { Badge, Button, Card, IconLabel, InfoBanner, Mono, NavButton, PageHead, QueryState } from '../components/ui';
+import { Badge, Button, Card, IconLabel, InfoBanner, NavButton, PageHead, QueryState } from '../components/ui';
 import { opsApi } from '../api/ops';
 import { useModal } from '../context/ModalContext';
 import { useToast } from '../context/ToastContext';

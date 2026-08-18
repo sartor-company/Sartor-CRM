@@ -29,6 +29,10 @@ function productUnitPrice(p: ApiProduct) {
   return num(p.sellingPrice ?? p.supplyPrice ?? p.price);
 }
 
+function defaultSku(p?: ApiProduct) {
+  return p ? productSku(p) : '';
+}
+
 export function InventoryModals() {
   const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { isCeo, displayName } = useApp();

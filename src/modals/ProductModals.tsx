@@ -43,7 +43,7 @@ function productLicence(p: ApiProduct) {
 
 export function ProductModals() {
   const { isOpen, closeModal, openModal, getPayload, handleSubmit, showToast } = useModalActions();
-  const { showAddProduct, showProdEdit, showProdStock } = useRoleGates();
+  const { showAddProduct, showProdEdit, showProdStock, showCeoBatch } = useRoleGates();
   const { warehouses } = useLiveOptions();
   const packWarehouseRef = useRef<HTMLSelectElement>(null);
   const addNameRef = useRef<HTMLInputElement>(null);

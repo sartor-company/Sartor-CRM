@@ -34,7 +34,8 @@ export default function DriversPage() {
   const { openModal } = useModal();
   const { showToast } = useToast();
   const { showOnboardDriver, showDriverEdit, showDriverWh } = useRoleGates();
-  const { data: drivers = [], loading, error, reload } = useApiQuery(() => opsApi.listDrivers(), []);
+  const { data, loading, error, reload } = useApiQuery(() => opsApi.listDrivers(), []);
+  const drivers = data ?? [];
 
   useEffect(() => {
     const onChange = () => void reload();

@@ -81,6 +81,8 @@ export default function CustomersPage() {
     return () => window.removeEventListener('crm-leads-changed', onChange);
   }, [reload]);
 
+  const { showToast } = useToast();
+
   const customers = useMemo(() => {
     const rows = data?.customers ?? [];
     const seen = new Set<string>();

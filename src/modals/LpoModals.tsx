@@ -6,7 +6,7 @@ import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { crmApi, leadName, refName, type CrmCustomer, type CrmLead, type CrmLpo } from '../api/crm';
 import { useApp } from '../context/AppContext';
-import { productLabel, useLiveOptions } from '../hooks/useLiveOptions';
+import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
 import { formatNaira, num } from '../utils/format';
 import { lpoStatusVariant } from '../utils/statusBadges';
 import { FG, FRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
