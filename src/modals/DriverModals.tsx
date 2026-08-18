@@ -59,6 +59,7 @@ export function DriverModals() {
   const yearRef = useRef<HTMLInputElement>(null);
   const plateRef = useRef<HTMLInputElement>(null);
   const whRef = useRef<HTMLSelectElement>(null);
+  const whAssignRef = useRef<HTMLSelectElement>(null);
 
   const driver =
     getPayload<{ driver?: OpsDriver }>('view-driver')?.driver ||
@@ -113,6 +114,53 @@ export function DriverModals() {
   const passDriver = (id: import('../types').ModalId) => {
     if (driver) openModal(id, { driver });
     else openModal(id);
+  };
+
+  const unassignCurrentDriver = async () => {
+    if (!driver?._id) return;
+    try {
+      await opsApi.unassignDriver(driver._id);
+      closeModal('view-driver');
+      showToast(
+        driver.activeLpo || driver.status === 'On Route'
+          ? 'Driver unassigned from delivery.'
+          : `${driver.name} unassigned from ${whName(driver.warehouse)}.`,
+        'warn',
+      );
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Unassign failed', 'err');
+    }
+  };
+
+  const saveWarehouseAssign = async (btn: HTMLButtonElement | null) => {
+    if (!driver?._id) {
+      showToast('Select a driver.', 'err');
+      return;
+    }
+    const warehouse = whAssignRef.current?.value || '';
+    if (!warehouse) {
+      showToast('Select a warehouse.', 'err');
+      return;
+    }
+    const orig = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+    }
+    try {
+      await opsApi.updateDriver(driver._id, { warehouse });
+      closeModal('assign-driver-warehouse');
+      showToast('Driver assigned to warehouse.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to assign warehouse', 'err');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = orig || 'Confirm Assignment';
+      }
+    }
   };
 
   return (
@@ -239,6 +287,11 @@ export function DriverModals() {
             <Button variant="secondary" onClick={() => closeModal('view-driver')}>
               Close
             </Button>
+            {driver && (driver.activeLpo || driver.warehouse || driver.status === 'On Route') && (
+              <Button variant="secondary" onClick={() => void unassignCurrentDriver()}>
+                Unassign
+              </Button>
+            )}
             <RoleGate show={showDriverWh}>
               <Button
                 variant="outline"
@@ -395,12 +448,28 @@ export function DriverModals() {
           size="narrow"
           footer={
             <ModalFooterActions onCancel={() => closeModal('assign-driver-warehouse')}>
-              <Button
-                variant="primary"
-                onClick={(e) =>
-                  handleSubmit('assign-driver-warehouse', e.currentTarget, 'Driver assigned to warehouse.')
-                }
-              >
+              {driver?.warehouse && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => {
+                    void (async () => {
+                      if (!driver?._id) return;
+                      try {
+                        await opsApi.updateDriver(driver._id, { warehouse: '' });
+                        closeModal('assign-driver-warehouse');
+                        showToast(`${driver.name} unassigned from ${whName(driver.warehouse)}.`, 'warn');
+                        window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+                      } catch (e) {
+                        showToast(e instanceof Error ? e.message : 'Unassign failed', 'err');
+                      }
+                    })();
+                  }}
+                >
+                  Unassign
+                </Button>
+              )}
+              <Button variant="primary" onClick={(e) => void saveWarehouseAssign(e.currentTarget)}>
                 Confirm Assignment
               </Button>
             </ModalFooterActions>
@@ -418,7 +487,18 @@ export function DriverModals() {
             }
           />
           <FG label="Assign to Warehouse *" full style={{ marginTop: 10 }}>
-            <select className="sel" defaultValue="">
+            <select
+              ref={whAssignRef}
+              className="sel"
+              key={driver?._id || 'wh-assign'}
+              defaultValue={
+                typeof driver?.warehouse === 'object' && driver?.warehouse
+                  ? driver.warehouse._id
+                  : typeof driver?.warehouse === 'string'
+                    ? driver.warehouse
+                    : ''
+              }
+            >
               <option value="">Select warehouse…</option>
               {whList.map((w) => (
                 <option key={w._id} value={w._id}>

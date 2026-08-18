@@ -1,18 +1,123 @@
+import { useEffect, useMemo } from 'react';
 import { Button, DataTable, InfoBanner, Mono, PageHead, SearchBar } from '../components/ui';
-import { crmApi, leadName, type CrmCustomer } from '../api/crm';
+import { Icon } from '../components/ui/Icon';
+import {
+  crmApi,
+  leadCoords,
+  leadName,
+  type CrmCustomer,
+  type CrmInvoice,
+  type CrmLpo,
+} from '../api/crm';
+import { useLocation } from '../context/LocationContext';
 import { useModal } from '../context/ModalContext';
+import { useToast } from '../context/ToastContext';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useTableFilter } from '../hooks/useTableFilter';
-import { formatDate } from '../utils/format';
+import { formatDate, formatNaira, num } from '../utils/format';
 
 function leadOf(c: CrmCustomer) {
   return typeof c.lead === 'object' && c.lead ? c.lead : null;
 }
 
+function refId(ref: { _id: string } | string | null | undefined): string | null {
+  if (!ref) return null;
+  return typeof ref === 'string' ? ref : ref._id || null;
+}
+
+function invoiceAmount(inv: CrmInvoice) {
+  return num(inv.totalAmount);
+}
+
+function isPaid(inv: CrmInvoice) {
+  const s = String(inv.status || '').toLowerCase();
+  return s === 'paid' || s === 'payment confirmed' || s === 'confirmed paid';
+}
+
+function isCancelled(inv: CrmInvoice) {
+  return String(inv.status || '').toLowerCase() === 'cancelled';
+}
+
+function CustomerGpsButton({ customer }: { customer: CrmCustomer }) {
+  const { pins, navigateTo } = useLocation();
+  const { showToast } = useToast();
+  const lead = leadOf(customer);
+  const stored = leadCoords(lead);
+  const live = lead?._id ? pins[`lead:${lead._id}`] : undefined;
+  const pin = stored ?? (live ? { lat: live.lat, lng: live.lng } : null);
+
+  return (
+    <button
+      type="button"
+      className="nav-btn nav-btn-sml"
+      title={pin ? 'Navigate to pinned customer location' : 'No GPS pin yet'}
+      onClick={() => {
+        if (!pin) {
+          showToast('No location pinned for this customer yet. Pin it from the lead record.', 'warn');
+          return;
+        }
+        navigateTo(pin.lat, pin.lng);
+      }}
+    >
+      <Icon name="compass" size={14} />
+    </button>
+  );
+}
+
 export default function CustomersPage() {
   const { openModal } = useModal();
-  const { data, loading, error, reload } = useApiQuery(() => crmApi.listCustomers(), []);
-  const customers = data ?? [];
+  const { data, loading, error, reload } = useApiQuery(async () => {
+    const [customers, invoices, lpos] = await Promise.all([
+      crmApi.listCustomers(),
+      crmApi.listInvoices().catch(() => [] as CrmInvoice[]),
+      crmApi.listLpos().catch(() => [] as CrmLpo[]),
+    ]);
+    return { customers, invoices, lpos };
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => void reload();
+    window.addEventListener('crm-leads-changed', onChange);
+    return () => window.removeEventListener('crm-leads-changed', onChange);
+  }, [reload]);
+
+  const customers = useMemo(() => {
+    const rows = data?.customers ?? [];
+    const seen = new Set<string>();
+    const unique: CrmCustomer[] = [];
+    for (let i = rows.length - 1; i >= 0; i -= 1) {
+      const c = rows[i];
+      const leadId = typeof c.lead === 'object' && c.lead ? c.lead._id : c.lead;
+      const key = String(leadId || c._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      unique.push(c);
+    }
+    return unique.reverse();
+  }, [data?.customers]);
+  const invoices = data?.invoices ?? [];
+  const lpos = data?.lpos ?? [];
+
+  const statsByLead = useMemo(() => {
+    const map = new Map<string, { orders: number; revenue: number; outstanding: number }>();
+    const bump = (id: string | null) => {
+      if (!id) return { orders: 0, revenue: 0, outstanding: 0 };
+      const row = map.get(id) ?? { orders: 0, revenue: 0, outstanding: 0 };
+      map.set(id, row);
+      return row;
+    };
+    for (const lpo of lpos) {
+      bump(refId(lpo.lead)).orders += 1;
+    }
+    for (const inv of invoices) {
+      if (isCancelled(inv)) continue;
+      const row = bump(refId(inv.lead));
+      const amt = invoiceAmount(inv);
+      row.revenue += amt;
+      if (!isPaid(inv)) row.outstanding += amt;
+    }
+    return map;
+  }, [invoices, lpos]);
 
   const { search, setSearch, filtered } = useTableFilter(customers, '', (row, q) => {
     const lead = leadOf(row);
@@ -25,9 +130,9 @@ export default function CustomersPage() {
     <>
       <PageHead
         title="Customers"
-        subtitle="Converted accounts with first confirmed payment."
+        subtitle="Converted accounts. A lead becomes a customer once, when the deal is closed won or payment is confirmed."
         actions={
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => showToast('Exporting customers…', 'ok')}>
             Export
           </Button>
         }
@@ -55,8 +160,8 @@ export default function CustomersPage() {
             <th>Category</th>
             <th>Location</th>
             <th>Converted</th>
-            <th>ID</th>
-            <th>Status</th>
+            <th>Orders</th>
+            <th>Revenue</th>
             <th>Outstanding</th>
             <th>Actions</th>
           </tr>
@@ -77,6 +182,7 @@ export default function CustomersPage() {
           ) : (
             filtered.map((c) => {
               const lead = leadOf(c);
+              const stats = statsByLead.get(lead?._id || '') ?? { orders: 0, revenue: 0, outstanding: 0 };
               return (
                 <tr key={c._id}>
                   <td>
@@ -85,15 +191,17 @@ export default function CustomersPage() {
                   <td>{lead?.type || '—'}</td>
                   <td>{[lead?.lga, lead?.state].filter(Boolean).join(', ') || '—'}</td>
                   <td>{formatDate(c.creationDateTime)}</td>
+                  <td>{stats.orders}</td>
                   <td>
-                    <Mono style={{ fontSize: 12 }}>{c.customerId || c._id.slice(-6)}</Mono>
-                  </td>
-                  <td>{c.status || 'Active'}</td>
-                  <td>
-                    <Mono style={{ color: 'var(--Gd)' }}>—</Mono>
+                    <Mono>{formatNaira(stats.revenue)}</Mono>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    <Mono style={{ color: stats.outstanding > 0 ? 'var(--at)' : 'var(--Gd)' }}>
+                      {formatNaira(stats.outstanding)}
+                    </Mono>
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
                       <Button
                         variant="outline"
                         size="xs"
@@ -101,6 +209,7 @@ export default function CustomersPage() {
                       >
                         Statement
                       </Button>
+                      <CustomerGpsButton customer={c} />
                       <Button
                         variant="green"
                         size="xs"

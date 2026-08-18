@@ -4,6 +4,8 @@ import { PAGE_PATHS } from '../../constants/routes';
 import { TIER_GATES } from '../../constants/tiers';
 import { ROLE_META } from '../../constants/roles';
 import { useApp } from '../../context/AppContext';
+import { useAuthStore } from '../../store/authStore';
+import { canUseSartorChain } from '../../utils/sartorChain';
 import { Icon } from '../ui/Icon';
 import type { PageId } from '../../types';
 
@@ -18,6 +20,8 @@ function initials(name: string): string {
 
 export function Sidebar() {
   const { role, tier, sidebarOpen, closeSidebar, displayName, roleLabel, logout } = useApp();
+  const user = useAuthStore((s) => s.user);
+  const scAllowed = canUseSartorChain(user);
   const meta = ROLE_META[role];
   const items = NAV_CONFIG[role] ?? [];
   const allowed = TIER_GATES[tier];
@@ -41,9 +45,29 @@ export function Sidebar() {
               </span>
             );
           }
+          const isDoraNav = n.id === 'sartor360' || n.id === 'sticker-orders';
+          if (isDoraNav && !scAllowed) {
+            if (n.id !== 'sartor360') return null;
+            return (
+              <NavLink
+                key={n.id}
+                to={PAGE_PATHS.sartor360}
+                className={({ isActive }) => `ni tier-lock${isActive ? ' on' : ''}`}
+                onClick={closeSidebar}
+              >
+                <span className="ico">
+                  <Icon name="lock" size={14} />
+                </span>
+                <span>{n.lbl}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 9, color: 'rgba(255,255,255,.3)' }}>
+                  Upgrade
+                </span>
+              </NavLink>
+            );
+          }
           const tierLock = n.tier && !n.tier.includes(tier);
           const permLock = allowed && !allowed.includes(n.id);
-          if (tierLock || permLock) {
+          if ((tierLock || permLock) && !(isDoraNav && scAllowed)) {
             return (
               <div key={n.id} className="ni tier-lock">
                 <span className="ico">

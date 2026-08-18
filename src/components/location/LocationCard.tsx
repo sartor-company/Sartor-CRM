@@ -1,18 +1,33 @@
+import { useEffect } from 'react';
 import { Button, Icon, IconLabel, NavButton } from '../ui';
-import { useLocation } from '../../context/LocationContext';
+import { locationPinKey, useLocation } from '../../context/LocationContext';
 import { useModal } from '../../context/ModalContext';
-import type { LocationContext as LocCtx } from '../../types';
+import type { LocationContext as LocCtx, LocationPin } from '../../types';
 import { useRoleGates } from '../../hooks/useRoleGates';
 
-export function LocationCardSection({ context }: { context: LocCtx }) {
-  const { pins, setPickerContext, setViewContext, setViewPin } = useLocation();
+export function LocationCardSection({
+  context,
+  entityId,
+  initialPin,
+}: {
+  context: LocCtx;
+  entityId?: string;
+  initialPin?: LocationPin | null;
+}) {
+  const { pins, setPickerContext, setViewContext, setViewPin, hydratePin } = useLocation();
   const { openModal } = useModal();
+  const pinKey = locationPinKey(context, entityId);
+  const { showLocPin } = useRoleGates();
+  const pin = pins[pinKey] ?? initialPin ?? undefined;
+
+  useEffect(() => {
+    if (initialPin) hydratePin(pinKey, initialPin);
+  }, [hydratePin, initialPin, pinKey]);
+
   const openPicker = () => {
-    setPickerContext(context);
+    setPickerContext(pinKey);
     openModal('location-picker');
   };
-  const { showLocPin } = useRoleGates();
-  const pin = pins[context];
 
   if (!pin) {
     return (
@@ -58,7 +73,7 @@ export function LocationCardSection({ context }: { context: LocCtx }) {
             variant="secondary"
             size="xs"
             onClick={() => {
-              setViewContext(context);
+              setViewContext(pinKey);
               setViewPin(pin);
               openModal('location-view');
             }}

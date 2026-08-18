@@ -50,12 +50,12 @@ export default function ReturnsPage() {
 
       <InfoBanner>
         <strong>Returns flow:</strong> Log Return → WH Receives & Assesses → Issue Credit Note → Apply to Next Invoice
-        or Refund.
+        or Refund. Commission is not reversed until the credit note is approved.
       </InfoBanner>
 
       <KpiGrid cols={3}>
         <KpiCard label="Pending Assessment" value={String(pending)} accent="red" />
-        <KpiCard label="Credit Notes" value={String(cnPending)} accent="amber" />
+        <KpiCard label="Credit Notes Pending" value={String(cnPending)} accent="amber" />
         <KpiCard label="Resolved" value={String(resolved)} accent="green" />
       </KpiGrid>
 
@@ -74,11 +74,11 @@ export default function ReturnsPage() {
         <DataTable id="returns-table">
           <thead>
             <tr>
-              <th>Ref</th>
+              <th>Return Ref</th>
               <th>Customer</th>
               <th>Invoice</th>
               <th>Date</th>
-              <th>SKUs</th>
+              <th>SKUs / Qty</th>
               <th>Reason</th>
               <th>Condition</th>
               <th>Status</th>
@@ -122,7 +122,7 @@ export default function ReturnsPage() {
                       View
                     </Button>
                     <RoleGate show={showInvConfirmPay}>
-                      {r.status !== 'Credit Note Issued' && r.status !== 'Closed' && (
+                      {r.status !== 'Credit Note Issued' && r.status !== 'Closed' && r.status !== 'Refunded' && (
                         <Button
                           variant="green"
                           size="xs"
@@ -131,14 +131,23 @@ export default function ReturnsPage() {
                           Issue CN
                         </Button>
                       )}
-                      {r.creditNote && (
-                        <Button
-                          variant="secondary"
-                          size="xs"
-                          onClick={() => openModal('credit-note', { returnRow: r })}
-                        >
-                          Credit Note
-                        </Button>
+                      {(r.status === 'Credit Note Issued' || r.creditNote) && (
+                        <>
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={() => openModal('credit-note-apply', { returnRow: r })}
+                          >
+                            Apply CN
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            onClick={() => openModal('payment-refund', { returnRow: r })}
+                          >
+                            Cash Refund
+                          </Button>
+                        </>
                       )}
                     </RoleGate>
                     {r.amount ? <Mono style={{ fontSize: 10 }}>{formatNaira(r.amount)}</Mono> : null}

@@ -16,26 +16,44 @@ import { useApp } from '../context/AppContext';
 import { useModal } from '../context/ModalContext';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useRoleGates } from '../hooks/useRoleGates';
+import { useAuthStore } from '../store/authStore';
 import { formatCompactNaira, formatNaira, num } from '../utils/format';
+import { inThisMonth, isOverdue, outstandingAmount } from '../utils/invoice';
 import { invoiceStatusVariant } from '../utils/statusBadges';
 
 export default function DashboardPage() {
   const { openModal } = useModal();
   const { navigateToPage } = useApp();
+  const user = useAuthStore((s) => s.user);
   const { showDashCommCard, showKcComm } = useRoleGates();
 
   const { data: dash, loading: dashLoading, error: dashError } = useApiQuery(
     () => crmApi.dashboard(),
     [],
   );
-  const { data: invoices } = useApiQuery(() => crmApi.listInvoices(), []);
+  const { data: extra } = useApiQuery(async () => {
+    const [invoices, leads, lpos, config, commissions] = await Promise.all([
+      crmApi.listInvoices().catch(() => []),
+      crmApi.listLeads().catch(() => []),
+      crmApi.listLpos().catch(() => []),
+      crmApi.getCommissionConfig().catch(() => null),
+      user?._id ? crmApi.listUserCommissions(user._id).catch(() => []) : Promise.resolve([]),
+    ]);
+    return { invoices, leads, lpos, config, commissions };
+  }, [user?._id]);
 
+  const invoices = extra?.invoices ?? [];
+  const recent = invoices.slice(0, 5);
+  const overdue = invoices.filter(isOverdue);
+  const overdueAmt = overdue.reduce((s, i) => s + outstandingAmount(i), 0);
+  const activeLeads = (extra?.leads ?? []).filter((l) => l.status !== 'Closed Lost' && l.status !== 'Closed Won' && l.status !== 'Payment Confirmed').length;
+  const pendingLpos = (extra?.lpos ?? []).filter((l) => !/deliver|cancel/i.test(l.status || '')).length;
+  const mtdRevenue = invoices
+    .filter((i) => inThisMonth(i.creationDateTime || i.dueDate))
+    .reduce((s, i) => s + num(i.totalAmount), 0);
+  const commissionDue = (extra?.commissions ?? []).reduce((s, c) => s + num(c.earned), 0);
+  const rate = extra?.config?.price ? `${extra.config.price}%` : 'Commission';
   const cards = dash?.cards;
-  const recent = (invoices ?? []).slice(0, 5);
-  const overdueCount = (invoices ?? []).filter((i) =>
-    String(i.status || '').toLowerCase().includes('overdue'),
-  ).length;
-  const pendingLpos = cards?.totalLpos ?? '—';
 
   return (
     <>
@@ -49,11 +67,12 @@ export default function DashboardPage() {
 
       <RoleGate show={showDashCommCard}>
         <div className="comm-card mb">
-          <div className="comm-card-rate">Commission</div>
+          <div className="comm-card-rate">{rate} Rate</div>
           <div className="comm-card-lbl">My Commission Due</div>
-          <div className="comm-card-amt">—</div>
+          <div className="comm-card-amt">{formatNaira(commissionDue)}</div>
           <div className="comm-card-sub">
-            From confirmed invoices ·{' '}
+            From {(extra?.commissions ?? []).length} confirmed invoice
+            {(extra?.commissions ?? []).length === 1 ? '' : 's'} ·{' '}
             <button
               type="button"
               className="ca"
@@ -68,33 +87,33 @@ export default function DashboardPage() {
 
       <KpiGrid cols={5}>
         <KpiCard
-          label="Total Sales"
-          value={dashLoading ? '…' : formatCompactNaira(cards?.totalSales)}
-          trend="From dashboard"
+          label="Revenue (MTD)"
+          value={dashLoading ? '…' : formatCompactNaira(mtdRevenue || cards?.totalSales)}
+          trend="This month"
           accent="green"
           smallValue
         />
         <KpiCard
-          label="Customers"
-          value={dashLoading ? '…' : String(cards?.totalCustomers ?? 0)}
+          label="Active Leads"
+          value={String(activeLeads || cards?.totalCustomers || 0)}
           accent="green"
         />
         <KpiCard
-          label="LPOs"
-          value={dashLoading ? '…' : String(pendingLpos)}
+          label="Pending LPOs"
+          value={String(pendingLpos || cards?.totalLpos || 0)}
           accent="amber"
         />
         <KpiCard
           label="Overdue Invoices"
-          value={String(overdueCount)}
-          trend={overdueCount ? 'Needs attention' : 'All clear'}
-          trendType={overdueCount ? 'down' : 'up'}
+          value={String(overdue.length)}
+          trend={overdue.length ? formatNaira(overdueAmt) : 'All clear'}
+          trendType={overdue.length ? 'down' : 'up'}
           accent="red"
         />
         <RoleGate show={showKcComm}>
           <KpiCard
-            label="Products"
-            value={dashLoading ? '…' : String(cards?.totalProducts ?? 0)}
+            label="Commission Owed"
+            value={formatCompactNaira(commissionDue)}
             accent="purple"
             smallValue
           />
@@ -103,7 +122,7 @@ export default function DashboardPage() {
 
       <div className="g3 mb">
         <Card>
-          <CardHeader title="Revenue — Monthly" />
+          <CardHeader title="Revenue — Last 6 Months" />
           <div className="chart-wrap">
             <RevenueChart monthlyRevenue={dash?.revenueChart?.monthlyRevenue} />
           </div>
@@ -146,7 +165,7 @@ export default function DashboardPage() {
               {recent.length === 0 ? (
                 <tr>
                   <td colSpan={4} style={{ color: 'var(--tx3)', fontSize: 12 }}>
-                    {invoices ? 'No invoices yet.' : 'Loading…'}
+                    {extra ? 'No invoices yet.' : 'Loading…'}
                   </td>
                 </tr>
               ) : (

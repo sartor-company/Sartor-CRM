@@ -192,6 +192,40 @@ export default function SettingsPage() {
                   staff to warehouses. Each user occupies one seat on your billing plan.
                 </div>
               </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                  alignItems: 'center',
+                  background: 'var(--bg)',
+                  border: '1px solid var(--brd)',
+                  borderRadius: 9,
+                  padding: '12px 16px',
+                  marginBottom: 14,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 }}>
+                    Plan
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--N)' }}>{TIER_LABELS[tier]}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 }}>
+                    Seats Used
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700 }}>{activeSeats}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--tx3)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 3 }}>
+                    Seat Allowance
+                  </div>
+                  <div style={{ fontFamily: "'DM Mono',monospace", fontSize: 14, fontWeight: 700 }}>
+                    {tier === '360' ? 'Unlimited' : 'Per seat'}
+                  </div>
+                </div>
+              </div>
               <QueryState
                 loading={usersLoading}
                 error={usersError}
@@ -206,6 +240,7 @@ export default function SettingsPage() {
                         <th>Role</th>
                         <th>Warehouse</th>
                         <th>Commission</th>
+                        <th>Seats</th>
                         <th>Status</th>
                         <th>Actions</th>
                       </tr>
@@ -237,11 +272,16 @@ export default function SettingsPage() {
                                 {m.role || m.consoleRole || '—'}
                               </Badge>
                             </td>
-                            <td>—</td>
-                            <td>—</td>
                             <td>
-                              <Badge variant={inactive ? 'amber' : 'green'}>
-                                {inactive ? 'Inactive' : 'Active'}
+                              {typeof m.warehouse === 'object' && m.warehouse
+                                ? m.warehouse.name || '—'
+                                : m.warehouse || '—'}
+                            </td>
+                            <td>{noCommission ? '—' : m.commissionRate != null ? `${m.commissionRate}%` : '—'}</td>
+                            <td style={{ fontFamily: "'DM Mono',monospace" }}>1</td>
+                            <td>
+                              <Badge variant={inactive ? 'amber' : m.onLeave ? 'amber' : 'green'}>
+                                {inactive ? 'Inactive' : m.onLeave ? 'On Leave' : 'Active'}
                               </Badge>
                             </td>
                             <td>
@@ -343,6 +383,54 @@ export default function SettingsPage() {
                   </select>
                 </div>
               </div>
+              <div className="sdiv-label">Stock & Inventory</div>
+              <div className="frow">
+                <div className="fg">
+                  <label>Stock Adjustment Approval</label>
+                  <select className="sel" defaultValue="ceo">
+                    <option value="ceo">CEO only</option>
+                    <option value="wh">WH Manager up to 50 units</option>
+                  </select>
+                </div>
+                <div className="fg">
+                  <label>Write-off Threshold</label>
+                  <select className="sel" defaultValue="25k">
+                    <option value="always">Always require CEO</option>
+                    <option value="25k">Below ₦25,000 — WH Manager</option>
+                  </select>
+                </div>
+              </div>
+              <div className="sdiv-label">Supplier Payments</div>
+              <div className="frow">
+                <div className="fg">
+                  <label>PO Approval Threshold</label>
+                  <input className="inp" type="number" defaultValue={250000} />
+                </div>
+                <div className="fg">
+                  <label>Payment Release</label>
+                  <select className="sel">
+                    <option>CEO + Finance dual approval</option>
+                    <option>Finance only</option>
+                  </select>
+                </div>
+              </div>
+              <div className="sdiv-label">Lead & Customer Management</div>
+              <div className="frow">
+                <div className="fg">
+                  <label>Lead Reassignment</label>
+                  <select className="sel">
+                    <option>CEO and Admin only</option>
+                    <option>Any manager</option>
+                  </select>
+                </div>
+                <div className="fg">
+                  <label>Customer Credit Limit Changes</label>
+                  <select className="sel">
+                    <option>CEO approval required</option>
+                    <option>Finance Manager up to ₦500,000</option>
+                  </select>
+                </div>
+              </div>
               <div style={{ marginTop: 16 }}>
                 <Button onClick={() => save('Approval thresholds saved. Changes apply immediately.')}>
                   Save Thresholds
@@ -387,6 +475,28 @@ export default function SettingsPage() {
                     <IconLabel icon="check" size={12}>Per-user override</IconLabel>
                   </span>
                 </div>
+                <div className="grid-override-row">
+                  <span style={{ fontSize: 13 }}>Finance Manager</span>
+                  <input className="inp" type="number" defaultValue={0} step={0.5} style={{ padding: '5px 8px', fontSize: 12, textAlign: 'right' }} />
+                  <span style={{ fontSize: 12, color: 'var(--tx3)' }}>Default 0%</span>
+                </div>
+              </div>
+              <div className="sdiv-label">Policy</div>
+              <div className="frow">
+                <div className="fg">
+                  <label>Commission Reversal on Returns</label>
+                  <select className="sel">
+                    <option>Reverse when credit note is approved</option>
+                    <option>Do not reverse</option>
+                  </select>
+                </div>
+                <div className="fg">
+                  <label>Commission on Partial Payments</label>
+                  <select className="sel">
+                    <option>Only on confirmed full payment</option>
+                    <option>Pro-rata on each confirmed payment</option>
+                  </select>
+                </div>
               </div>
               <Button onClick={() => save('Commission settings saved.')}>Save Commission Settings</Button>
           </Panel>
@@ -400,8 +510,27 @@ export default function SettingsPage() {
                   + Add Category
                 </Button>
               </div>
-              <div style={{ padding: '28px 8px', textAlign: 'center', color: 'var(--tx3)', fontSize: 13 }}>
-                No product categories configured yet. Add a category to organise your catalogue.
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {['Personal Care', 'Health Products', 'FMCG', 'Pharma'].map((cat) => (
+                  <div
+                    key={cat}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 12px',
+                      border: '1px solid var(--brd)',
+                      borderRadius: 8,
+                      background: 'var(--bg)',
+                    }}
+                  >
+                    <strong style={{ fontSize: 13 }}>{cat}</strong>
+                    <Badge variant="gray">Active</Badge>
+                  </div>
+                ))}
+                <div style={{ fontSize: 12, color: 'var(--tx3)', padding: '4px 2px' }}>
+                  Add a category to organise your catalogue further.
+                </div>
               </div>
           </Panel>
 

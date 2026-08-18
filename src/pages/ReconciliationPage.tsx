@@ -18,9 +18,8 @@ export default function ReconciliationPage() {
   const { openModal } = useModal();
   const { data: rows = [], loading, error } = useApiQuery(() => opsApi.listRecons(), []);
 
-  const matched = (rows ?? []).filter((r) => r.status === 'Matched').length;
-  const investigating = (rows ?? []).filter((r) => r.status === 'Under Investigation').length;
-  const adjusted = (rows ?? []).filter((r) => r.status === 'Adjusted').length;
+  const lastCount = (rows ?? [])[0];
+  const openVar = (rows ?? []).filter((r) => (r.variance ?? 0) !== 0 && r.status !== 'Adjusted' && r.status !== 'Matched').length;
 
   return (
     <>
@@ -30,7 +29,7 @@ export default function ReconciliationPage() {
         subtitle="Physical counts vs system stock."
         actions={
           <Button variant="green" size="sm" onClick={() => openModal('stock-recon-count')}>
-            + New Count
+            + Start Cycle Count
           </Button>
         }
       />
@@ -40,9 +39,9 @@ export default function ReconciliationPage() {
       </InfoBanner>
 
       <KpiGrid cols={3}>
-        <KpiCard label="Matched" value={String(matched)} accent="green" />
-        <KpiCard label="Under Investigation" value={String(investigating)} accent="amber" />
-        <KpiCard label="Adjusted" value={String(adjusted)} accent="blue" />
+        <KpiCard label="Last Full Count" value={lastCount ? formatDate(lastCount.countDate || lastCount.creationDateTime) : '—'} />
+        <KpiCard label="Open Variances" value={String(openVar)} accent="amber" />
+        <KpiCard label="Next Scheduled Count" value="This week" accent="blue" />
       </KpiGrid>
 
       <QueryState
@@ -60,6 +59,7 @@ export default function ReconciliationPage() {
               <th>System</th>
               <th>Physical</th>
               <th>Variance</th>
+              <th>Var %</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -67,6 +67,8 @@ export default function ReconciliationPage() {
           <tbody>
             {(rows ?? []).map((r) => {
               const variance = r.variance ?? 0;
+              const sys = r.systemQty ?? 0;
+              const pct = sys ? ((variance / sys) * 100).toFixed(1) : '0.0';
               return (
                 <tr key={r._id}>
                   <td>{formatDate(r.countDate || r.creationDateTime)}</td>
@@ -86,6 +88,11 @@ export default function ReconciliationPage() {
                     </Mono>
                   </td>
                   <td>
+                    <Mono style={{ color: variance === 0 ? 'var(--Gd)' : 'var(--at)' }}>
+                      {variance === 0 ? '0%' : `${Number(pct) > 0 ? '+' : ''}${pct}%`}
+                    </Mono>
+                  </td>
+                  <td>
                     <Badge
                       variant={
                         r.status === 'Matched' ? 'green' : r.status === 'Adjusted' ? 'blue' : 'amber'
@@ -95,9 +102,19 @@ export default function ReconciliationPage() {
                     </Badge>
                   </td>
                   <td>
-                    <Button variant="outline" size="xs" onClick={() => openModal('stock-recon-count')}>
-                      Review
-                    </Button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <Button variant="outline" size="xs" onClick={() => openModal('stock-recon-count')}>
+                        Review
+                      </Button>
+                      {variance !== 0 && r.status !== 'Adjusted' && (
+                        <Button variant="amber" size="xs" onClick={() => openModal('stock-adjust')}>
+                          Adjust
+                        </Button>
+                      )}
+                      <Button variant="secondary" size="xs" onClick={() => openModal('stock-recon-count')}>
+                        Report
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               );

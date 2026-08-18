@@ -94,16 +94,19 @@ export default function ReorderAlertsPage() {
             <tr>
               <th>SKU</th>
               <th>Product</th>
-              <th>Stock</th>
+              <th>Available</th>
+              <th>Committed</th>
               <th>Reorder Level</th>
-              <th>% of Level</th>
+              <th>Days Until Stockout</th>
               <th>Alert</th>
               <th>Replenishment</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {alerts.map((a) => (
+            {alerts.map((a) => {
+              const daysOut = a.stock <= 0 ? 0 : Math.max(1, Math.round((a.stock / Math.max(a.reorderLevel, 1)) * 14));
+              return (
               <tr key={a.productId}>
                 <td>
                   <Mono style={{ fontSize: 12 }}>{a.sku}</Mono>
@@ -113,9 +116,12 @@ export default function ReorderAlertsPage() {
                   <Mono>{a.stock.toLocaleString()}</Mono>
                 </td>
                 <td>
+                  <Mono>0</Mono>
+                </td>
+                <td>
                   <Mono>{a.reorderLevel.toLocaleString()}</Mono>
                 </td>
-                <td>{a.pct}%</td>
+                <td>{a.stock <= 0 ? 'Now' : `${daysOut}d`}</td>
                 <td>
                   <Badge variant={a.alert === 'Critical' ? 'red' : 'amber'}>
                     <IconLabel icon={a.alert === 'Critical' ? 'circle-alert' : 'alert'} size={12}>
@@ -131,18 +137,24 @@ export default function ReorderAlertsPage() {
                   </Badge>
                 </td>
                 <td>
-                  {!a.replenishment ? (
-                    <Button variant="green" size="xs" onClick={() => void requestReplen(a)}>
-                      Request
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {!a.replenishment ? (
+                      <Button variant="green" size="xs" onClick={() => void requestReplen(a)}>
+                        Request Replenishment
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="xs" onClick={() => openModal('replenishment-request')}>
+                        View
+                      </Button>
+                    )}
+                    <Button variant="secondary" size="xs" onClick={() => openModal('view-product', { product: { _id: a.productId, skuCode: a.sku, productName: a.name } })}>
+                      View Batches
                     </Button>
-                  ) : (
-                    <Button variant="outline" size="xs" onClick={() => openModal('replenishment-request')}>
-                      View
-                    </Button>
-                  )}
+                  </div>
                 </td>
               </tr>
-            ))}
+            );
+            })}
           </tbody>
         </DataTable>
       </QueryState>

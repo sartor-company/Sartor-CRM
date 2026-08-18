@@ -24,6 +24,18 @@ export function formatDate(value?: number | string | Date | null): string {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+export function formatMonth(value?: number | string | Date | null): string {
+  if (value == null || value === '') return '—';
+  const d =
+    typeof value === 'number'
+      ? new Date(value)
+      : typeof value === 'string' && /^\d+$/.test(value)
+        ? new Date(Number(value))
+        : new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+}
+
 export function formatShortDate(value?: number | string | Date | null): string {
   if (value == null || value === '') return '—';
   const d =

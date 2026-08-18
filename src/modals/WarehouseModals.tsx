@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
-import type { OpsWarehouse } from '../api/ops';
+import { opsApi, type OpsDriver, type OpsWarehouse } from '../api/ops';
 import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
 import { FG, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
@@ -20,47 +20,97 @@ function staffName(s: { fullName?: string } | string | null | undefined) {
 }
 
 export function WarehouseModals() {
-  const { isOpen, closeModal, openModal, getPayload } = useModalActions();
-  const { products } = useLiveOptions(isOpen('wh-inventory') || isOpen('wh-staff'));
+  const { isOpen, closeModal, openModal, getPayload, showToast } = useModalActions();
   const warehouse = getPayload<{ warehouse?: OpsWarehouse }>('wh-inventory')?.warehouse
     ?? getPayload<{ warehouse?: OpsWarehouse }>('wh-staff')?.warehouse;
 
-  const stockRows = useMemo(() => {
-    return products.map((p) => {
-      const qty = Number(p.totalQuantityAvailable ?? 0);
-      const status = qty <= 0 ? 'Out of Stock' : qty < 100 ? 'Low Stock' : 'OK';
-      return {
-        sku: productSku(p),
-        product: p.productName || '—',
-        batch: p.batchNumber || '—',
-        available: qty,
-        reserved: 0,
-        reorder: 100,
-        status,
-      };
-    });
-  }, [products]);
+  const [inv, setInv] = useState<Awaited<ReturnType<typeof opsApi.getWarehouseInventory>> | null>(null);
+  const [invLoading, setInvLoading] = useState(false);
+  const [whDrivers, setWhDrivers] = useState<OpsDriver[]>([]);
+  const inventoryOpen = isOpen('wh-inventory');
+  const staffOpen = isOpen('wh-staff');
 
-  const low = stockRows.filter((r) => r.status === 'Low Stock').length;
-  const oos = stockRows.filter((r) => r.status === 'Out of Stock').length;
-  const units = stockRows.reduce((s, r) => s + r.available, 0);
+  useEffect(() => {
+    if (!inventoryOpen || !warehouse?._id) {
+      setInv(null);
+      return;
+    }
+    let cancelled = false;
+    setInvLoading(true);
+    void opsApi
+      .getWarehouseInventory(warehouse._id)
+      .then((data) => {
+        if (!cancelled) setInv(data);
+      })
+      .catch((e) => {
+        if (!cancelled) showToast(e instanceof Error ? e.message : 'Failed to load inventory', 'err');
+      })
+      .finally(() => {
+        if (!cancelled) setInvLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [inventoryOpen, warehouse?._id, showToast]);
+
+  useEffect(() => {
+    if (!staffOpen || !warehouse?._id) {
+      setWhDrivers([]);
+      return;
+    }
+    let cancelled = false;
+    void opsApi
+      .listDrivers()
+      .then((rows) => {
+        if (cancelled) return;
+        const id = String(warehouse._id);
+        setWhDrivers(
+          rows.filter((d) => {
+            const wh = d.warehouse;
+            if (!wh) return false;
+            return typeof wh === 'string' ? wh === id : wh._id === id;
+          }),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setWhDrivers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [staffOpen, warehouse?._id]);
+
+  const stockRows = inv?.items ?? [];
+  const units = inv?.totalUnits ?? 0;
+  const low = inv?.lowStock ?? 0;
+  const oos = inv?.outOfStock ?? 0;
 
   const staff = useMemo(() => {
-    const rows: Array<{ name: string; role: string }> = [];
+    const rows: Array<{ key: string; name: string; role: string; driverId?: string }> = [];
     if (warehouse?.manager) {
       rows.push({
+        key: `mgr-${typeof warehouse.manager === 'object' ? warehouse.manager._id : warehouse.manager}`,
         name: staffName(warehouse.manager),
         role: typeof warehouse.manager === 'object' ? warehouse.manager.role || 'WH Manager' : 'WH Manager',
       });
     }
     for (const s of warehouse?.staff ?? []) {
       rows.push({
+        key: `st-${typeof s === 'object' ? s._id : s}`,
         name: staffName(s),
         role: typeof s === 'object' ? s.role || 'Staff' : 'Staff',
       });
     }
+    for (const d of whDrivers) {
+      rows.push({
+        key: `drv-${d._id}`,
+        name: d.name,
+        role: 'Driver',
+        driverId: d._id,
+      });
+    }
     return rows;
-  }, [warehouse]);
+  }, [warehouse, whDrivers]);
 
   const titleName = warehouse?.name || 'Warehouse';
 
@@ -71,10 +121,20 @@ export function WarehouseModals() {
         open={isOpen('wh-inventory')}
         onClose={() => closeModal('wh-inventory')}
         title={`${titleName} — Inventory`}
-        subtitle="Catalog stock snapshot for this workspace"
+        subtitle="Live stock levels for this warehouse only"
         size="wide"
         footer={
           <ModalFooterActions onCancel={() => closeModal('wh-inventory')} cancelLabel="Close">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                closeModal('wh-inventory');
+                openModal('grn', { warehouse });
+              }}
+            >
+              Receive Stock
+            </Button>
             <Button
               variant="green"
               size="sm"
@@ -91,7 +151,7 @@ export function WarehouseModals() {
         <div className="krow k4 mb">
           <div className="kc kg">
             <div className="klbl">Total SKUs</div>
-            <div className="kval">{stockRows.length}</div>
+            <div className="kval">{invLoading ? '…' : stockRows.length}</div>
           </div>
           <div className="kc kn">
             <div className="klbl">Total Units</div>
@@ -119,18 +179,26 @@ export function WarehouseModals() {
                 </tr>
               </thead>
               <tbody>
-                {stockRows.length === 0 ? (
+                {invLoading ? (
                   <tr>
                     <td colSpan={5} style={{ color: 'var(--tx3)' }}>
-                      No products in catalog yet.
+                      Loading this warehouse’s stock…
+                    </td>
+                  </tr>
+                ) : stockRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>
+                      No stock received at this warehouse yet. Use Receive Stock (GRN) and select this location.
                     </td>
                   </tr>
                 ) : (
                   stockRows.map((r) => (
-                    <tr key={r.sku}>
+                    <tr key={r.productId}>
                       <td style={{ fontFamily: "'DM Mono',monospace", fontSize: 11 }}>{r.sku}</td>
-                      <td>{r.product}</td>
-                      <td style={{ fontFamily: "'DM Mono',monospace", fontSize: 11 }}>{r.batch}</td>
+                      <td>{r.productName}</td>
+                      <td style={{ fontFamily: "'DM Mono',monospace", fontSize: 11 }}>
+                        {r.batches.map((b) => b.batchNumber).filter(Boolean).join(', ') || '—'}
+                      </td>
                       <td
                         style={{
                           fontFamily: "'DM Mono',monospace",
@@ -174,8 +242,8 @@ export function WarehouseModals() {
         }
       >
         <InfoBanner variant="info">
-          Staff listed here come from the warehouse record. Assignments are managed when creating or updating
-          warehouses.
+          Staff assigned here appear as operators for this warehouse. Drivers linked to this location can be
+          unassigned without deleting their profile.
         </InfoBanner>
         <div className="tw">
           <table style={{ fontSize: 13 }}>
@@ -184,26 +252,53 @@ export function WarehouseModals() {
                 <th>Name</th>
                 <th>Role</th>
                 <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {staff.length === 0 ? (
                 <tr>
-                  <td colSpan={3} style={{ color: 'var(--tx3)' }}>
+                  <td colSpan={4} style={{ color: 'var(--tx3)' }}>
                     No staff assigned to this warehouse yet.
                   </td>
                 </tr>
               ) : (
                 staff.map((s) => (
-                  <tr key={`${s.name}-${s.role}`}>
+                  <tr key={s.key}>
                     <td>
                       <strong>{s.name}</strong>
                     </td>
                     <td>
-                      <Badge variant="gray">{s.role}</Badge>
+                      <Badge variant={s.role === 'Driver' ? 'gray' : s.role.includes('Manager') ? 'amber' : 'blue'}>
+                        {s.role}
+                      </Badge>
                     </td>
                     <td>
                       <Badge variant="green">Active</Badge>
+                    </td>
+                    <td>
+                      {s.driverId ? (
+                        <Button
+                          variant="danger"
+                          size="xs"
+                          onClick={() => {
+                            void (async () => {
+                              try {
+                                await opsApi.updateDriver(s.driverId!, { warehouse: '' });
+                                setWhDrivers((prev) => prev.filter((d) => d._id !== s.driverId));
+                                showToast(`${s.name} unassigned from ${titleName}.`, 'warn');
+                                window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+                              } catch (e) {
+                                showToast(e instanceof Error ? e.message : 'Unassign failed', 'err');
+                              }
+                            })();
+                          }}
+                        >
+                          Unassign
+                        </Button>
+                      ) : (
+                        '—'
+                      )}
                     </td>
                   </tr>
                 ))

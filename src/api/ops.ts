@@ -45,6 +45,7 @@ export interface OpsVisit {
   notes?: string;
   lat?: number;
   lng?: number;
+  products?: Array<{ label?: string; found?: boolean; qty?: number }>;
   creationDateTime?: number;
 }
 
@@ -114,7 +115,7 @@ export interface OpsLpoRow {
   assignedAt?: number;
   deliveryCode?: string;
   creationDateTime?: number;
-  lead?: { _id?: string; name?: string; state?: string; address?: string } | string | null;
+  lead?: { _id?: string; name?: string; state?: string; address?: string; lat?: number; lng?: number } | string | null;
   user?: { _id: string; fullName?: string } | string | null;
   packedBy?: { _id: string; fullName?: string } | string | null;
   driver?: { _id: string; name?: string; plate?: string; phone?: string } | string | null;
@@ -127,8 +128,9 @@ export interface OpsFinanceInvoice {
   name?: string;
   status?: string;
   totalAmount?: string | number;
+  paidAmount?: string | number;
   isFirstInvoice?: boolean;
-  lead?: { _id?: string; name?: string } | string | null;
+  lead?: { _id?: string; name?: string; address?: string; lat?: number; lng?: number } | string | null;
   user?: { _id: string; fullName?: string } | string | null;
   creationDateTime?: number;
 }
@@ -141,6 +143,25 @@ export const opsApi = {
   listWarehouses: async () => {
     const res = await apiClient.get('/warehouses');
     return listData<OpsWarehouse>(res);
+  },
+  getWarehouseInventory: async (id: string) => {
+    const res = await apiClient.get(`/warehouse/${id}/inventory`);
+    return unwrap<{
+      warehouse: { _id: string; name?: string };
+      skuCount: number;
+      totalUnits: number;
+      lowStock: number;
+      outOfStock: number;
+      items: Array<{
+        productId: string;
+        sku: string;
+        productName: string;
+        available: number;
+        reorderLevel: number;
+        status: string;
+        batches: Array<{ _id: string; batchNumber?: string; quantity: number; expiryDate?: number; status?: string }>;
+      }>;
+    }>(res);
   },
   createWarehouse: async (body: {
     name: string;

@@ -1,4 +1,5 @@
 import { Badge, Button, DataTable, PageHead, QueryState } from '../components/ui';
+import { crmApi } from '../api/crm';
 import { teamApi } from '../api/team';
 import { useModal } from '../context/ModalContext';
 import { useApiQuery } from '../hooks/useApiQuery';
@@ -18,6 +19,8 @@ function roleVariant(role?: string): BadgeVariant {
 export default function TeamPage() {
   const { openModal } = useModal();
   const { data: members = [], loading, error } = useApiQuery(() => teamApi.listUsers(), []);
+  const { data: config } = useApiQuery(() => crmApi.getCommissionConfig(), []);
+  const defaultRate = config?.price;
 
   return (
     <>
@@ -44,6 +47,7 @@ export default function TeamPage() {
               <th>Name</th>
               <th>Email</th>
               <th>Role</th>
+              <th>Commission</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
@@ -51,9 +55,11 @@ export default function TeamPage() {
           <tbody>
             {(members ?? []).map((m) => {
               const inactive = m.blocked || m.isDisabled;
+              const onLeave = m.onLeave;
               const noCommission =
                 m.isOwner ||
-                /warehouse|inventory|driver|merch|owner/i.test(m.role || '');
+                /warehouse|inventory|driver|merch|owner|finance|ceo/i.test(m.role || '');
+              const rate = m.commissionRate ?? (noCommission ? null : defaultRate);
               return (
                 <tr key={m._id}>
                   <td>
@@ -66,9 +72,10 @@ export default function TeamPage() {
                   <td>
                     <Badge variant={roleVariant(m.role)}>{m.role || m.consoleRole || '—'}</Badge>
                   </td>
+                  <td>{rate != null ? `${rate}%` : '—'}</td>
                   <td>
-                    <Badge variant={inactive ? 'amber' : 'green'}>
-                      {inactive ? 'Inactive' : 'Active'}
+                    <Badge variant={inactive ? 'red' : onLeave ? 'amber' : 'green'}>
+                      {inactive ? 'Inactive' : onLeave ? 'On Leave' : 'Active'}
                     </Badge>
                   </td>
                   <td>

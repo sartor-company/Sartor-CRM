@@ -57,7 +57,7 @@ export default function VisitsPage() {
 
       <RoleGate show={isCeoAdmin}>
         <InfoBanner id="visits-info-banner">
-          Merchandisers log shelf presence, OOS counts, and competitor sightings from the field.
+          Merchandisers log shelf stock counts per SKU, out-of-stock alerts, competitor observations, notes, and photos.
         </InfoBanner>
       </RoleGate>
 
@@ -74,9 +74,9 @@ export default function VisitsPage() {
               <th>Category</th>
               <th>Date</th>
               <th>Merchandiser</th>
-              <th>Found</th>
-              <th>OOS</th>
-              <th>Competitors</th>
+              <th>Sartor SKUs Found</th>
+              <th>OOS SKUs</th>
+              <th>Competitors Noted</th>
               <th>Photos</th>
               <th>Actions</th>
             </tr>
@@ -106,7 +106,7 @@ export default function VisitsPage() {
                     size="xs"
                     onClick={() => openModal('visit-detail', { visit: v })}
                   >
-                    View
+                    View Full Report
                   </Button>
                 </td>
               </tr>

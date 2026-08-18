@@ -6,24 +6,37 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { LocationContext as LocCtx, LocationPin } from '../types';
+import type { LocationPin } from '../types';
 import { ROLE_META } from '../constants/roles';
 import { useApp } from './AppContext';
 
 export const LOC_DEFAULT = { lat: 9.0579, lng: 7.4951 };
 
+export function locationPinKey(context: string, entityId?: string | null) {
+  return entityId ? `${context}:${entityId}` : context;
+}
+
+export function parseLocationPinKey(key: string | null): { context: string; entityId?: string } {
+  if (!key) return { context: 'lead' };
+  const i = key.indexOf(':');
+  if (i === -1) return { context: key };
+  return { context: key.slice(0, i), entityId: key.slice(i + 1) };
+}
+
 interface LocationContextValue {
-  pins: Partial<Record<LocCtx, LocationPin>>;
+  pins: Record<string, LocationPin>;
   pickerLat: number;
   pickerLng: number;
   setPickerCoords: (lat: number, lng: number) => void;
-  pickerContext: LocCtx | null;
-  setPickerContext: (ctx: LocCtx | null) => void;
-  savePin: (label: string) => void;
+  pickerContext: string | null;
+  setPickerContext: (ctx: string | null) => void;
+  savePin: (label: string) => LocationPin | null;
+  hydratePin: (key: string, pin: LocationPin) => void;
+  clearPin: (key: string) => void;
   viewPin: LocationPin | null;
   setViewPin: (pin: LocationPin | null) => void;
-  viewContext: LocCtx | null;
-  setViewContext: (ctx: LocCtx | null) => void;
+  viewContext: string | null;
+  setViewContext: (ctx: string | null) => void;
   navigateTo: (lat: number, lng: number) => void;
 }
 
@@ -31,21 +44,34 @@ const LocationCtx = createContext<LocationContextValue | null>(null);
 
 export function LocationProvider({ children }: { children: ReactNode }) {
   const { role } = useApp();
-  const [pins, setPins] = useState<Partial<Record<LocCtx, LocationPin>>>({});
+  const [pins, setPins] = useState<Record<string, LocationPin>>({});
   const [pickerLat, setPickerLat] = useState(LOC_DEFAULT.lat);
   const [pickerLng, setPickerLng] = useState(LOC_DEFAULT.lng);
-  const [pickerContext, setPickerContext] = useState<LocCtx | null>(null);
+  const [pickerContext, setPickerContext] = useState<string | null>(null);
   const [viewPin, setViewPin] = useState<LocationPin | null>(null);
-  const [viewContext, setViewContext] = useState<LocCtx | null>(null);
+  const [viewContext, setViewContext] = useState<string | null>(null);
 
   const setPickerCoords = useCallback((lat: number, lng: number) => {
     setPickerLat(lat);
     setPickerLng(lng);
   }, []);
 
+  const hydratePin = useCallback((key: string, pin: LocationPin) => {
+    setPins((prev) => (prev[key] ? prev : { ...prev, [key]: pin }));
+  }, []);
+
+  const clearPin = useCallback((key: string) => {
+    setPins((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }, []);
+
   const savePin = useCallback(
     (label: string) => {
-      if (!pickerContext) return;
+      if (!pickerContext) return null;
       const pin: LocationPin = {
         lat: pickerLat,
         lng: pickerLng,
@@ -54,6 +80,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
         pinned_at: new Date().toLocaleDateString('en-GB'),
       };
       setPins((prev) => ({ ...prev, [pickerContext]: pin }));
+      return pin;
     },
     [pickerContext, pickerLat, pickerLng, role],
   );
@@ -71,6 +98,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       pickerContext,
       setPickerContext,
       savePin,
+      hydratePin,
+      clearPin,
       viewPin,
       setViewPin,
       viewContext,
@@ -84,6 +113,8 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       setPickerCoords,
       pickerContext,
       savePin,
+      hydratePin,
+      clearPin,
       viewPin,
       viewContext,
       navigateTo,

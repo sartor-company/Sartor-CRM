@@ -1,4 +1,4 @@
-import { Badge, Button, DataTable, PageHead, QueryState, RoleGate, SearchBar } from '../components/ui';
+import { Badge, Button, DataTable, InfoBanner, PageHead, QueryState, RoleGate, SearchBar } from '../components/ui';
 import { opsApi } from '../api/ops';
 import { useApp } from '../context/AppContext';
 import { useModal } from '../context/ModalContext';
@@ -12,17 +12,11 @@ function personName(p: { fullName?: string } | string | null | undefined) {
   return p.fullName || '—';
 }
 
-function severityVariant(s?: string) {
-  const v = (s || '').toLowerCase();
-  if (v === 'critical' || v === 'high') return 'red' as const;
-  if (v === 'medium') return 'amber' as const;
-  return 'gray' as const;
-}
-
 export default function IntelPage() {
   const { openModal } = useModal();
   const { isCeoAdmin, isMerch } = useApp();
   const { data: rows = [], loading, error } = useApiQuery(() => opsApi.listIntel(), []);
+  const { data: visits = [] } = useApiQuery(() => opsApi.listVisits(!isCeoAdmin), [isCeoAdmin]);
 
   const { search, setSearch, filtered } = useTableFilter(rows ?? [], '', (row, q) =>
     [row.storeName, row.competitor, row.observation, row.category]
@@ -34,8 +28,8 @@ export default function IntelPage() {
     <>
       <PageHead
         icon="eye"
-        title="Market Intel"
-        subtitle="Competitor sightings and field observations."
+        title="Market Intelligence"
+        subtitle="Competitor observations submitted from store visits."
         actions={
           <RoleGate show={isMerch || isCeoAdmin}>
             <Button variant="green" size="sm" onClick={() => openModal('market-intel')}>
@@ -45,7 +39,14 @@ export default function IntelPage() {
         }
       />
 
-      <SearchBar placeholder="Search by store, competitor or observation…" value={search} onChange={setSearch} />
+      <SearchBar placeholder="Search by store, competitor brand or observation…" value={search} onChange={setSearch} />
+
+      <RoleGate show={isCeoAdmin}>
+        <InfoBanner>
+          Market intelligence is aggregated from merchandiser visit logs. Each entry includes the store, competitor
+          brands spotted, and shelf observations.
+        </InfoBanner>
+      </RoleGate>
 
       <QueryState
         loading={loading}
@@ -57,30 +58,51 @@ export default function IntelPage() {
           <thead>
             <tr>
               <th>Store</th>
-              <th>Category</th>
-              <th>Competitor</th>
-              <th>Observation</th>
-              <th>Severity</th>
-              <th>Reported By</th>
               <th>Date</th>
+              <th>Merchandiser</th>
+              <th>Competitor Brands</th>
+              <th>Observations</th>
+              <th>Visit</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r._id}>
-                <td>
-                  <strong>{r.storeName}</strong>
-                </td>
-                <td>{r.category || '—'}</td>
-                <td>{r.competitor || '—'}</td>
-                <td>{r.observation}</td>
-                <td>
-                  <Badge variant={severityVariant(r.severity)}>{r.severity || 'Medium'}</Badge>
-                </td>
-                <td>{personName(r.reportedBy)}</td>
-                <td>{formatDate(r.reportDate || r.creationDateTime)}</td>
-              </tr>
-            ))}
+            {filtered.map((r) => {
+              const brands = (r.competitor || '')
+                .split(/[,;/]+/)
+                .map((b) => b.trim())
+                .filter(Boolean);
+              const visit = (visits ?? []).find((v) => v.storeName === r.storeName);
+              return (
+                <tr key={r._id}>
+                  <td>
+                    <strong>{r.storeName}</strong>
+                  </td>
+                  <td>{formatDate(r.reportDate || r.creationDateTime)}</td>
+                  <td>{personName(r.reportedBy)}</td>
+                  <td>
+                    {brands.length ? (
+                      brands.map((b) => (
+                        <Badge key={b} variant="gray" style={{ marginRight: 4 }}>
+                          {b}
+                        </Badge>
+                      ))
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td style={{ maxWidth: 260, fontSize: 12 }}>{r.observation}</td>
+                  <td>
+                    <Button
+                      variant="outline"
+                      size="xs"
+                      onClick={() => openModal('visit-detail', visit ? { visit } : undefined)}
+                    >
+                      Visit
+                    </Button>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </DataTable>
       </QueryState>

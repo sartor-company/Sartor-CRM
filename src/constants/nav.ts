@@ -33,7 +33,6 @@ export const NAV_CONFIG: Record<RoleId, NavEntry[]> = {
     { type: 'item', id: 'reports', ico: 'chart', lbl: 'Reports' },
     { type: 'item', id: 'settings', ico: 'settings', lbl: 'Settings' },
     { type: 'item', id: 'sartor360', ico: 'link', lbl: 'Sartor-Chain + DORA', tier: ['360'] },
-    { type: 'item', id: 'sticker-orders', ico: 'qr-code', lbl: 'Sticker Orders', tier: ['360'] },
   ],
   admin: [
     { type: 'item', id: 'dash', ico: 'home', lbl: 'Dashboard' },

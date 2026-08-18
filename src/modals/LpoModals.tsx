@@ -4,20 +4,29 @@ import { Icon, IconLabel } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
-import { leadName, refName, type CrmCustomer, type CrmLead, type CrmLpo } from '../api/crm';
+import { crmApi, leadName, refName, type CrmCustomer, type CrmLead, type CrmLpo } from '../api/crm';
 import { useApp } from '../context/AppContext';
-import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
+import { productLabel, useLiveOptions } from '../hooks/useLiveOptions';
 import { formatNaira, num } from '../utils/format';
 import { lpoStatusVariant } from '../utils/statusBadges';
 import { FG, FRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
 type LpoItem = { product: string; qty: number; price: number };
 
+const TERMS_TO_API: Record<string, string> = {
+  pod: 'Payment On Delivery',
+  upfront: 'Upfront Payment',
+  sor30: 'Sales Or Returns',
+  '2wk': 'Payment 2 weeks after delivery',
+  sold60: 'Full Payment after 70% stock sold',
+};
+
 export function LpoModals() {
   const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { companyName, displayName, roleLabel } = useApp();
-  const { products, customerOptions, drivers } = useLiveOptions();
+  const { products, customerOptions, customers, drivers } = useLiveOptions();
   const [step, setStep] = useState(1);
+  const [saving, setSaving] = useState(false);
   const [customer, setCustomer] = useState('');
   const [terms, setTerms] = useState('');
   const [items, setItems] = useState<LpoItem[]>([{ product: '', qty: 0, price: 0 }]);
@@ -63,12 +72,67 @@ export function LpoModals() {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
   };
 
-  const onProductChange = (idx: number, sku: string) => {
-    const p = products.find((x) => productSku(x) === sku);
+  const onProductChange = (idx: number, id: string) => {
+    const p = products.find((x) => x._id === id);
     updateItem(idx, {
-      product: sku,
+      product: id,
       price: p ? num(p.sellingPrice ?? p.price) : 0,
     });
+  };
+
+  const resolveLeadId = () => {
+    if (!customer || customer === 'new') return '';
+    const selected = customerOptions.find((c) => c.id === customer);
+    if (selected?.kind === 'lead') return customer;
+    const cust = customers.find((c) => c._id === customer);
+    if (!cust) return '';
+    if (typeof cust.lead === 'object' && cust.lead) return cust.lead._id;
+    if (typeof cust.lead === 'string') return cust.lead;
+    return '';
+  };
+
+  const saveLpo = async (btn: HTMLButtonElement | null) => {
+    if (saving) return;
+    const leadId = resolveLeadId();
+    const apiTerms = TERMS_TO_API[terms];
+    const lines = items.filter((i) => i.product && i.qty > 0);
+    if (!leadId) {
+      showToast('Select a lead or customer with a linked lead.', 'err');
+      return;
+    }
+    if (!apiTerms) {
+      showToast('Select payment terms.', 'err');
+      return;
+    }
+    if (!lines.length) {
+      showToast('Add at least one product with quantity.', 'err');
+      return;
+    }
+    setSaving(true);
+    const orig = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+    }
+    try {
+      await crmApi.createLpo({
+        lead: leadId,
+        terms: apiTerms,
+        product: lines.map((i) => ({ product: i.product, quantity: i.qty })),
+      });
+      closeModal('create-lpo');
+      resetWizard();
+      showToast('LPO submitted for warehouse review.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-lpos-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to create LPO', 'err');
+    } finally {
+      setSaving(false);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = orig || 'Submit LPO →';
+      }
+    }
   };
 
   const lpoId = lpo?.lpoId || (lpo ? lpo._id.slice(-6) : 'LPO');
@@ -106,10 +170,10 @@ export function LpoModals() {
             )}
             <Button
               variant="primary"
+              disabled={saving}
               onClick={(e) => {
                 if (step === 1) setStep(2);
-                else
-                  handleSubmit('create-lpo', e.currentTarget, 'LPO submitted for warehouse review.', resetWizard);
+                else void saveLpo(e.currentTarget);
               }}
             >
               {step === 1 ? 'Next: Review →' : 'Submit LPO →'}
@@ -221,7 +285,7 @@ export function LpoModals() {
                   >
                     <option value="">Select product…</option>
                     {products.map((p) => (
-                      <option key={p._id} value={productSku(p)}>
+                      <option key={p._id} value={p._id}>
                         {productLabel(p)}
                       </option>
                     ))}

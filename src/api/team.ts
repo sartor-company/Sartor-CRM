@@ -13,6 +13,9 @@ export interface ApiTeamUser {
   isDisabled?: boolean;
   userRole?: string;
   image?: string;
+  warehouse?: { _id: string; name?: string } | string | null;
+  commissionRate?: number;
+  onLeave?: boolean;
   creationDateTime?: number;
   createdAt?: string;
 }

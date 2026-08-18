@@ -19,6 +19,9 @@ export interface CrmProfile {
   role?: string;
   roleLabel: string;
   tier: TierId;
+  /** Tenant was onboarded with Sartor-Chain + DORA (standalone or with CRM). */
+  servicesScdora?: boolean;
+  scEnabled?: boolean;
   clientCode?: string;
   phone?: string;
   address?: string;

@@ -6,13 +6,13 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { formatShortDate } from '../utils/format';
 
 const PIPELINE_STAGES: { title: string; statuses: string[]; titleIcon?: 'sparkles' }[] = [
-  { title: 'Contacted', statuses: ['Contacted'] },
-  { title: 'Qualified', statuses: ['Qualified', 'Follow Up'] },
-  { title: 'Interested', statuses: ['Interested'] },
+  { title: 'New', statuses: ['New', ''] },
+  { title: 'Contact Made', statuses: ['Contacted'] },
+  { title: 'Qualifying', statuses: ['Qualified', 'Follow Up', 'Interested'] },
   { title: 'Negotiation', statuses: ['In-Negotiations', 'Hold'] },
   { title: 'LPO Raised', statuses: ['LPO Generated'] },
   {
-    title: 'Won',
+    title: 'Customer',
     titleIcon: 'sparkles',
     statuses: ['Closed Won', 'Payment Confirmed', 'Order Fulfilled'],
   },
@@ -76,7 +76,7 @@ export default function PipelinePage() {
                       <span style={{ fontSize: 10, color: 'var(--tx3)' }}>
                         {formatShortDate(card.creationDateTime)}
                       </span>
-                      {col.title !== 'LPO Raised' && col.title !== 'Won' && (
+                      {col.title !== 'LPO Raised' && col.title !== 'Customer' && (
                         <Button
                           variant="secondary"
                           size="xs"

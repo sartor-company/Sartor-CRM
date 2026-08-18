@@ -15,6 +15,9 @@ export interface CrmLead {
   dealSize?: string;
   stores?: number;
   note?: string;
+  lat?: number;
+  lng?: number;
+  locationLabel?: string;
   creationDateTime?: number;
   user?: NamedRef;
   admin?: NamedRef;
@@ -54,6 +57,8 @@ export interface CrmInvoice {
   name?: string;
   status?: string;
   totalAmount?: string | number;
+  paidAmount?: string | number;
+  qrStatus?: string;
   dueDate?: string;
   creationDateTime?: number;
   lead?: CrmLead | string | null;
@@ -109,6 +114,20 @@ export function leadName(lead: CrmLead | string | null | undefined): string {
   return lead.name || '—';
 }
 
+export function leadCoords(
+  lead: CrmLead | string | null | undefined,
+): { lat: number; lng: number; label: string } | null {
+  if (!lead || typeof lead === 'string') return null;
+  const lat = Number(lead.lat);
+  const lng = Number(lead.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return {
+    lat,
+    lng,
+    label: lead.locationLabel || lead.address || lead.name || 'Pinned location',
+  };
+}
+
 export const crmApi = {
   dashboard: async () => {
     const res = await apiClient.get('/dashboard');
@@ -137,6 +156,9 @@ export const crmApi = {
     dealSize: string;
     status: string;
     notes?: string;
+    lat?: number;
+    lng?: number;
+    locationLabel?: string;
     contact: Array<{ name: string; email?: string; phone?: string; role?: string }>;
   }) => {
     const res = await apiClient.post('/lead', body);
@@ -157,6 +179,15 @@ export const crmApi = {
     const res = await apiClient.get('/customers', { params: listParams(search) });
     const data = unwrap<{ customers: CrmCustomer[] }>(res);
     return data.customers ?? [];
+  },
+
+  createLpo: async (body: {
+    lead: string;
+    terms: string;
+    product: Array<{ product: string; quantity: number }>;
+  }) => {
+    const res = await apiClient.post('/lpo', body);
+    return unwrap<{ lpo?: CrmLpo } & Record<string, unknown>>(res);
   },
 
   listLpos: async (search?: string) => {

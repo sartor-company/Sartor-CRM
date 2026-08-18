@@ -1,36 +1,42 @@
-import { Card, CardHeader, InfoBanner, PageHead, Button, KpiGrid, KpiCard } from '../components/ui';
-import { useModal } from '../context/ModalContext';
-import { formatNaira, usePaymentIntent } from '../context/PaymentIntentContext';
+import { Card, CardHeader, InfoBanner, PageHead, KpiGrid, KpiCard } from '../components/ui';
+import { SartorChainUpgrade } from '../components/SartorChainUpgrade';
+import {
+  DORA_CREDITS,
+  DORA_HOME,
+  DORA_STICKER_ORDERS,
+  DORA_VERIFICATION_DOMAIN,
+} from '../constants/doraPortal';
 import { useAuthStore } from '../store/authStore';
+import { canUseSartorChain } from '../utils/sartorChain';
+
+function PortalLink({ href, children, className }: { href: string; children: string; className?: string }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className={className || 'btn bgrn bsm'}>
+      {children}
+    </a>
+  );
+}
 
 export default function Sartor360Page() {
-  const { openModal } = useModal();
-  const { setIntent } = usePaymentIntent();
   const user = useAuthStore((s) => s.user);
+
+  if (!canUseSartorChain(user)) {
+    return <SartorChainUpgrade feature="Sartor-Chain + DORA" />;
+  }
 
   const batch = user?.batchCalCredits ?? 0;
   const pins = user?.pinCredits ?? 0;
   const sms = user?.smsCredits ?? 0;
   const domain = user?.verifyDomain || 'verify.dorascan.ai';
 
-  const buyCredits = () => {
-    setIntent({
-      amountNaira: 150_000,
-      amountLabel: formatNaira(150_000),
-      description: 'Authentication Credits Top-up',
-      reference: 'PIN + SMS credit pack',
-    });
-    openModal('payment-gateway');
-  };
-
   return (
     <>
       <PageHead icon="link" title="Sartor-Chain & DORA AI" />
 
       <InfoBanner variant="succ">
-        <strong>Sartor CRM 360 Active.</strong> Your subscription includes full Sartor-Chain authentication, DORA AI
-        visual fingerprinting, Gift Engine, and direct access to the Sartor-Chain & DORA AI Client Admin portal — your
-        products and batches are pre-populated there based on your tier, credits and payment status.
+        <strong>Sartor-Chain + DORA is included on this account.</strong> Sticker orders,
+        authentication credits, and verification domain are managed in the Sartor-Chain & DORA AI
+        Client Admin portal — not in CRM.
       </InfoBanner>
 
       <div
@@ -71,13 +77,13 @@ export default function Sartor360Page() {
             Sartor-Chain & DORA AI Client Admin
           </div>
           <div style={{ fontSize: 12, color: 'rgba(255,255,255,.6)', lineHeight: 1.6 }}>
-            Full batch management, DORA AI dashboard, investigation queue, gift campaigns, and authentication analytics.
-            Products and batches from this account are automatically pre-populated.
+            Full batch management, DORA AI dashboard, sticker orders, authentication credits,
+            verification domain, investigation queue, and gift campaigns.
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0 }}>
           <a
-            href="https://admin.dorascan.ai"
+            href={DORA_HOME}
             target="_blank"
             rel="noreferrer"
             className="btn bgrn"
@@ -120,11 +126,10 @@ export default function Sartor360Page() {
               accent={sms < 1000 ? 'amber' : 'green'}
             />
           </KpiGrid>
-          <div style={{ marginTop: 12 }}>
-            <Button variant="green" size="sm" onClick={buyCredits}>
-              + Buy Credits
-            </Button>
-          </div>
+          <p style={{ fontSize: 12, color: 'var(--tx3)', margin: '12px 0 10px', lineHeight: 1.5 }}>
+            Buy and manage PIN, SMS, and batch-calibration credits in Sartor-Chain + DORA.
+          </p>
+          <PortalLink href={DORA_CREDITS}>Manage credits in Sartor-Chain + DORA ↗</PortalLink>
         </Card>
         <Card>
           <CardHeader title="Verification Domain" />
@@ -135,14 +140,23 @@ export default function Sartor360Page() {
             <div style={{ fontSize: 11, color: 'var(--Gd)' }}>Consumer QR scans route here</div>
           </div>
           <div style={{ fontSize: 12, color: 'var(--tx3)', marginBottom: 10, lineHeight: 1.5 }}>
-            Upgrade to a branded domain for white-label verification. Growth subdomain (₦100,000 one-time) or Enterprise
-            CNAME (₦150,000 setup + ₦200,000/yr).
+            Branded subdomain and enterprise CNAME upgrades are handled in the Sartor-Chain + DORA
+            portal (Owner Settings).
           </div>
-          <Button variant="outline" size="sm" onClick={() => openModal('domain-upgrade')}>
-            Upgrade Domain
-          </Button>
+          <PortalLink href={DORA_VERIFICATION_DOMAIN} className="btn bout bsm">
+            Manage verification domain ↗
+          </PortalLink>
         </Card>
       </div>
+
+      <Card style={{ marginTop: 16 }}>
+        <CardHeader title="Sticker Orders" />
+        <p style={{ fontSize: 13, color: 'var(--tx3)', lineHeight: 1.6, marginBottom: 12 }}>
+          Security sticker ordering, tracking, linking, and activation live in Sartor-Chain + DORA —
+          alongside products, batches, and PINs.
+        </p>
+        <PortalLink href={DORA_STICKER_ORDERS}>Open Sticker Orders ↗</PortalLink>
+      </Card>
     </>
   );
 }

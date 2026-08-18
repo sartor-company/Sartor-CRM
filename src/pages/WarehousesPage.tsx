@@ -77,23 +77,31 @@ export default function WarehousesPage() {
                 <span className="ival">{formatDate(w.creationDateTime)}</span>
               </div>
               <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openModal('wh-inventory', { warehouse: w })}
-                >
-                  View Inventory
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => openModal('wh-staff', { warehouse: w })}
-                >
-                  Manage Staff
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => void reload()}>
-                  Refresh
-                </Button>
+                {w.status === 'Pending' ? (
+                  <Button variant="green" size="sm" onClick={() => openModal('wh-staff', { warehouse: w })}>
+                    Assign Staff
+                  </Button>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openModal('wh-inventory', { warehouse: w })}
+                    >
+                      View Inventory
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openModal('wh-staff', { warehouse: w })}
+                    >
+                      Manage Staff
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => void reload()}>
+                      Refresh
+                    </Button>
+                  </>
+                )}
               </div>
             </Card>
           ))}

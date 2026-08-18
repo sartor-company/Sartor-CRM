@@ -27,6 +27,7 @@ import { useApiQuery } from '../hooks/useApiQuery';
 import { useRoleGates } from '../hooks/useRoleGates';
 import { useAuthStore } from '../store/authStore';
 import { formatCompactNaira, formatDate, formatNaira, num } from '../utils/format';
+import { lpoTermsOf, paidAmount, outstandingAmount, termsShort } from '../utils/invoice';
 import { invoiceStatusVariant } from '../utils/statusBadges';
 
 const ALL_TABS: { id: string; label: string; icon: IconName }[] = [
@@ -175,15 +176,17 @@ export default function ReportsPage() {
   }, [invoices]);
 
   const topReps = useMemo(() => {
-    const map = new Map<string, { name: string; revenue: number }>();
+    const map = new Map<string, { name: string; revenue: number; commission: number }>();
     for (const inv of invoices) {
       const name = refName(inv.user) || refName(inv.admin) || 'Unassigned';
-      const row = map.get(name) ?? { name, revenue: 0 };
+      const row = map.get(name) ?? { name, revenue: 0, commission: 0 };
       row.revenue += invoiceAmount(inv);
       map.set(name, row);
     }
+    const ratePct = num(data?.commissionCfg?.price) / 100;
+    for (const row of map.values()) row.commission = Math.round(row.revenue * (ratePct || 0.03));
     return [...map.values()].sort((a, b) => b.revenue - a.revenue).slice(0, 8);
-  }, [invoices]);
+  }, [invoices, data?.commissionCfg?.price]);
 
   const rate = num(data?.commissionCfg?.price);
   const commissions = data?.myCommissions ?? [];
@@ -199,6 +202,27 @@ export default function ReportsPage() {
     const lines = Array.isArray(r.products) ? r.products : [];
     return s + lines.reduce((ls, p) => ls + num(p.quantity), 0);
   }, 0);
+  const restockValue = restocks.reduce((s, r) => {
+    const lines = Array.isArray(r.products) ? r.products : [];
+    return s + lines.reduce((ls, p) => ls + num(p.quantity) * num(p.supplyPrice ?? p.sellingPrice), 0);
+  }, 0);
+  const cogs = restockValue;
+  const grossProfit = netSales - cogs;
+  const inputVat = Math.round(cogs * vatRate);
+  const vatPayable = Math.max(0, outputVat - inputVat);
+  const writeOffValue = recons
+    .filter((r) => num(r.variance) < 0)
+    .reduce((s, r) => {
+      const p = products.find((x) => x.productName === r.productName || x.skuCode === r.sku);
+      const price = num(p?.supplyPrice ?? p?.sellingPrice ?? p?.price);
+      return s + Math.abs(num(r.variance)) * price;
+    }, 0);
+  const commissionPaidOut = commissions
+    .filter((c) => String(c.status || '').toLowerCase() === 'paid')
+    .reduce((s, c) => s + num(c.earned ?? c.totalAmount), 0);
+  const commissionOutstanding = Math.max(0, commissionEarned - commissionPaidOut);
+  const opex = commissionPaidOut + writeOffValue + returnValue;
+  const noi = grossProfit - opex;
 
   return (
     <>
@@ -286,9 +310,11 @@ export default function ReportsPage() {
                 smallValue
               />
               <KpiCard
-                label="Customers"
-                value={String(dash?.cards.totalCustomers ?? topCustomers.length)}
-                accent="purple"
+                label="Net Operating Income"
+                value={formatCompactNaira(Math.max(0, noi))}
+                trend={`${collectionRate}% collection`}
+                accent="green"
+                smallValue
               />
             </KpiGrid>
             <div className="g2 mb">
@@ -356,6 +382,7 @@ export default function ReportsPage() {
                         <th>Rank</th>
                         <th>Name</th>
                         <th>Revenue</th>
+                        <th>Commission</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -367,6 +394,9 @@ export default function ReportsPage() {
                           <td>{r.name}</td>
                           <td>
                             <Mono>{formatNaira(r.revenue)}</Mono>
+                          </td>
+                          <td>
+                            <Mono>{formatNaira(r.commission)}</Mono>
                           </td>
                         </tr>
                       ))}
@@ -386,48 +416,84 @@ export default function ReportsPage() {
               <KpiCard label="Net Sales" value={formatNaira(netSales)} accent="green" smallValue />
               <KpiCard label="Units on LPOs" value={String(unitsSold)} accent="blue" />
             </KpiGrid>
+            <div className="sdiv-label">Sales by Product</div>
             <DataTable>
               <thead>
                 <tr>
                   <th>SKU</th>
                   <th>Product</th>
-                  <th>Stock</th>
-                  <th>Unit Price</th>
-                  <th>Status</th>
+                  <th>Units Sold</th>
+                  <th>Gross Revenue</th>
+                  <th>Returns</th>
+                  <th>Net Revenue</th>
+                  <th>Share</th>
                 </tr>
               </thead>
               <tbody>
                 {products.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>
+                    <td colSpan={7} style={{ color: 'var(--tx3)' }}>
                       No products in catalog.
                     </td>
                   </tr>
                 ) : (
-                  products.slice(0, 20).map((p) => {
-                    const qty = num(p.totalQuantityAvailable);
+                  (dash?.topProducts?.length ? dash.topProducts : products.slice(0, 20).map((p) => ({
+                    productName: p.productName || '—',
+                    unitPrice: num(p.sellingPrice ?? p.price),
+                    orders: 0,
+                    totalQuantity: 0,
+                    totalRevenue: 0,
+                    sku: p.skuCode || p.productId || '—',
+                  }))).map((p, i) => {
+                    const rev = num('totalRevenue' in p ? p.totalRevenue : 0);
+                    const share = netSales > 0 ? Math.round((rev / netSales) * 1000) / 10 : 0;
                     return (
-                      <tr key={p._id}>
+                      <tr key={`${p.productName}-${i}`}>
                         <td>
-                          <Mono style={{ fontSize: 11 }}>{p.skuCode || p.productId || '—'}</Mono>
+                          <Mono style={{ fontSize: 11 }}>{'sku' in p ? String(p.sku) : '—'}</Mono>
                         </td>
                         <td>{p.productName || '—'}</td>
                         <td>
-                          <Mono>{qty.toLocaleString()}</Mono>
+                          <Mono>{num(p.totalQuantity).toLocaleString()}</Mono>
                         </td>
                         <td>
-                          <Mono style={{ fontWeight: 700 }}>
-                            {formatNaira(p.sellingPrice ?? p.price)}
-                          </Mono>
+                          <Mono>{formatNaira(rev)}</Mono>
                         </td>
                         <td>
-                          <Badge variant={qty <= 0 ? 'red' : qty < 100 ? 'amber' : 'green'}>
-                            {qty <= 0 ? 'OOS' : p.status || 'In-Stock'}
-                          </Badge>
+                          <Mono>₦0</Mono>
                         </td>
+                        <td>
+                          <Mono style={{ fontWeight: 700 }}>{formatNaira(rev)}</Mono>
+                        </td>
+                        <td>{share}%</td>
                       </tr>
                     );
                   })
+                )}
+              </tbody>
+            </DataTable>
+            <div className="sdiv-label">Sales by Rep / Admin</div>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>Rep / Admin</th>
+                  <th>Revenue</th>
+                  <th>Commission</th>
+                </tr>
+              </thead>
+              <tbody>
+                {topReps.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} style={{ color: 'var(--tx3)' }}>No sales attribution yet.</td>
+                  </tr>
+                ) : (
+                  topReps.map((r) => (
+                    <tr key={r.name}>
+                      <td>{r.name}</td>
+                      <td><Mono>{formatNaira(r.revenue)}</Mono></td>
+                      <td><Mono>{formatNaira(r.commission)}</Mono></td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </DataTable>
@@ -457,15 +523,18 @@ export default function ReportsPage() {
                 <tr>
                   <th>Invoice</th>
                   <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Due</th>
+                  <th>Invoice Amt</th>
+                  <th>Payments Received</th>
+                  <th>Method</th>
+                  <th>Last Payment</th>
+                  <th>Outstanding</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {invoices.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>
+                    <td colSpan={8} style={{ color: 'var(--tx3)' }}>
                       No invoices yet.
                     </td>
                   </tr>
@@ -479,7 +548,14 @@ export default function ReportsPage() {
                       <td>
                         <Mono>{formatNaira(invoiceAmount(inv))}</Mono>
                       </td>
-                      <td>{formatDate(inv.dueDate)}</td>
+                      <td>
+                        <Mono>{formatNaira(paidAmount(inv))}</Mono>
+                      </td>
+                      <td>—</td>
+                      <td>{isPaid(inv) ? formatDate(inv.dueDate || inv.creationDateTime) : '—'}</td>
+                      <td>
+                        <Mono>{formatNaira(outstandingAmount(inv))}</Mono>
+                      </td>
                       <td>
                         <Badge variant={invoiceStatusVariant(inv.status)}>{inv.status || '—'}</Badge>
                       </td>
@@ -529,15 +605,19 @@ export default function ReportsPage() {
                 <tr>
                   <th>Invoice</th>
                   <th>Customer</th>
+                  <th>Terms</th>
+                  <th>Amount</th>
+                  <th>Invoice Date</th>
                   <th>Balance Due</th>
                   <th>Days Outstanding</th>
+                  <th>Aging Bucket</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {agingRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>
+                    <td colSpan={9} style={{ color: 'var(--tx3)' }}>
                       No outstanding invoices.
                     </td>
                   </tr>
@@ -548,6 +628,11 @@ export default function ReportsPage() {
                         <Mono style={{ fontSize: 11 }}>{inv.invoiceId || inv._id.slice(-6)}</Mono>
                       </td>
                       <td>{customerOf(inv)}</td>
+                      <td>{termsShort(lpoTermsOf(inv))}</td>
+                      <td>
+                        <Mono>{formatNaira(invoiceAmount(inv))}</Mono>
+                      </td>
+                      <td>{formatDate(inv.creationDateTime)}</td>
                       <td>
                         <Mono style={{ fontWeight: 700, color: days > 60 ? 'var(--rt)' : 'var(--at)' }}>
                           {formatNaira(amt)}
@@ -557,13 +642,25 @@ export default function ReportsPage() {
                         {days} days
                       </td>
                       <td>
-                        <Button
-                          variant="secondary"
-                          size="xs"
-                          onClick={() => openModal('add-payment', { invoice: inv })}
-                        >
-                          Add Payment
-                        </Button>
+                        <Badge variant={days > 60 ? 'red' : days > 30 ? 'amber' : 'gray'}>
+                          {days > 90 ? '90+' : days > 60 ? '60–90' : days > 30 ? '30–60' : '0–30'}
+                        </Badge>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <Button
+                            variant="secondary"
+                            size="xs"
+                            onClick={() => openModal('add-payment', { invoice: inv })}
+                          >
+                            Add Payment
+                          </Button>
+                          {days > 60 && (
+                            <Button variant="danger" size="xs" onClick={() => showToast('Escalated to CEO for collection.', 'warn')}>
+                              Escalate
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -606,38 +703,96 @@ export default function ReportsPage() {
                       {formatNaira(netSales)}
                     </span>
                   </div>
-                </div>
-                <div>
-                  <div className="sdiv-label" style={{ marginTop: 0 }}>
-                    Collections
-                  </div>
-                  <div className="irow" style={{ marginBottom: 4 }}>
+                  <div className="irow" style={{ marginBottom: 4, marginTop: 8 }}>
                     <span className="ilbl" style={{ minWidth: 200 }}>
-                      Paid Invoices
+                      COGS (from GRNs)
                     </span>
-                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', color: 'var(--Gd)' }}>
-                      {formatNaira(paidTotal)}
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right' }}>
+                      ({formatNaira(cogs)})
                     </span>
                   </div>
                   <div className="irow" style={{ borderTop: '1px solid var(--brd)', paddingTop: 6 }}>
                     <span className="ilbl" style={{ minWidth: 200, fontWeight: 700 }}>
-                      Outstanding
+                      Gross Profit
                     </span>
-                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700, color: 'var(--at)' }}>
-                      {formatNaira(outstandingTotal)}
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700, color: 'var(--Gd)' }}>
+                      {formatNaira(grossProfit)}
                     </span>
                   </div>
-                  <div style={{ background: 'var(--Gb)', borderRadius: 8, padding: 12, marginTop: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--tx3)', marginTop: 6 }}>
+                    Gross Margin:{' '}
+                    <strong style={{ color: 'var(--Gd)' }}>
+                      {netSales > 0 ? `${Math.round((grossProfit / netSales) * 1000) / 10}%` : '—'}
+                    </strong>{' '}
+                    — FMCG benchmark: 28–38%
+                  </div>
+                </div>
+                <div>
+                  <div className="sdiv-label" style={{ marginTop: 0 }}>
+                    Operating Expenses
+                  </div>
+                  <div className="irow" style={{ marginBottom: 4 }}>
+                    <span className="ilbl" style={{ minWidth: 200 }}>
+                      Sales Commissions Paid
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', color: 'var(--rt)' }}>
+                      ({formatNaira(commissionPaidOut)})
+                    </span>
+                  </div>
+                  <div className="irow" style={{ marginBottom: 4 }}>
+                    <span className="ilbl" style={{ minWidth: 200 }}>
+                      Stock Write-offs
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', color: 'var(--rt)' }}>
+                      ({formatNaira(writeOffValue)})
+                    </span>
+                  </div>
+                  <div className="irow" style={{ marginBottom: 4 }}>
+                    <span className="ilbl" style={{ minWidth: 200 }}>
+                      Credit Notes Issued
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', color: 'var(--rt)' }}>
+                      ({formatNaira(returnValue)})
+                    </span>
+                  </div>
+                  <div className="irow" style={{ borderTop: '2px solid var(--N)', paddingTop: 6, marginBottom: 14 }}>
+                    <span className="ilbl" style={{ minWidth: 200, fontWeight: 700, color: 'var(--N)' }}>
+                      Net Operating Income
+                    </span>
+                    <span className="ival" style={{ fontFamily: "'DM Mono', monospace", textAlign: 'right', fontWeight: 700, color: 'var(--N)' }}>
+                      {formatNaira(noi)}
+                    </span>
+                  </div>
+                  <div style={{ background: 'var(--Gb)', borderRadius: 8, padding: 12 }}>
                     <div className="sdiv-label" style={{ marginTop: 0, color: 'var(--Gd)' }}>
-                      Estimated Output VAT (7.5%)
+                      VAT Position — FIRS
+                    </div>
+                    <div className="irow" style={{ marginBottom: 3 }}>
+                      <span className="ilbl" style={{ minWidth: 140, color: 'var(--tx3)' }}>
+                        Output VAT (7.5% collected)
+                      </span>
+                      <span className="ival" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--Gd)' }}>
+                        {formatNaira(outputVat)}
+                      </span>
+                    </div>
+                    <div className="irow" style={{ marginBottom: 3 }}>
+                      <span className="ilbl" style={{ minWidth: 140, color: 'var(--tx3)' }}>
+                        Input VAT (paid on purchases)
+                      </span>
+                      <span className="ival" style={{ fontFamily: "'DM Mono', monospace", color: 'var(--rt)' }}>
+                        ({formatNaira(inputVat)})
+                      </span>
                     </div>
                     <div className="irow" style={{ borderTop: '1px solid rgba(0,179,65,.3)', paddingTop: 5 }}>
                       <span className="ilbl" style={{ minWidth: 140, fontWeight: 700, color: 'var(--Gd)' }}>
-                        VAT on Net Sales
+                        VAT Payable to FIRS
                       </span>
                       <span className="ival" style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: 'var(--Gd)' }}>
-                        {formatNaira(outputVat)}
+                        {formatNaira(vatPayable)}
                       </span>
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--tx3)', marginTop: 6 }}>
+                      Due: last day of next month. File VAT Return Form 002.
                     </div>
                   </div>
                 </div>
@@ -649,43 +804,51 @@ export default function ReportsPage() {
         {activeTab === 'commission' && (
           <div className="rpt-section">
             <KpiGrid cols={3}>
-              <KpiCard label="Configured Rate" value={rate ? `${rate}%` : '—'} />
-              <KpiCard label="My Commission Rows" value={String(commissions.length)} accent="green" />
-              <KpiCard label="Earned (listed)" value={formatNaira(commissionEarned)} accent="amber" smallValue />
+              <KpiCard label="Total Commission Due (MTD)" value={formatNaira(commissionEarned)} smallValue />
+              <KpiCard label="Paid Out" value={formatNaira(commissionPaidOut)} accent="green" smallValue />
+              <KpiCard label="Outstanding" value={formatNaira(commissionOutstanding)} accent="amber" smallValue />
             </KpiGrid>
             <DataTable>
               <thead>
                 <tr>
-                  <th>Invoice</th>
-                  <th>Customer</th>
-                  <th>Amount</th>
-                  <th>Earned</th>
+                  <th>Rep / Admin</th>
+                  <th>Rate</th>
+                  <th>Confirmed Revenue</th>
+                  <th>Commission Earned</th>
+                  <th>Paid Out</th>
+                  <th>Outstanding</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {commissions.length === 0 ? (
+                {topReps.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ color: 'var(--tx3)' }}>
-                      No commission records for this user yet.
+                    <td colSpan={8} style={{ color: 'var(--tx3)' }}>
+                      No commissionable revenue yet.
                     </td>
                   </tr>
                 ) : (
-                  commissions.slice(0, 25).map((c) => (
-                    <tr key={c._id || c.commissionID}>
+                  topReps.map((r) => (
+                    <tr key={r.name}>
                       <td>
-                        <Mono style={{ fontSize: 11 }}>{c.invoiceId || c.commissionID || '—'}</Mono>
+                        <strong>{r.name}</strong>
                       </td>
-                      <td>{customerOf(c)}</td>
+                      <td>{rate ? `${rate}%` : '—'}</td>
                       <td>
-                        <Mono>{formatNaira(c.totalAmount)}</Mono>
-                      </td>
-                      <td>
-                        <Mono style={{ fontWeight: 700 }}>{formatNaira(c.earned)}</Mono>
+                        <Mono>{formatNaira(r.revenue)}</Mono>
                       </td>
                       <td>
-                        <Badge variant={invoiceStatusVariant(c.status)}>{c.status || 'Pending'}</Badge>
+                        <Mono style={{ fontWeight: 700 }}>{formatNaira(r.commission)}</Mono>
+                      </td>
+                      <td>
+                        <Mono style={{ color: 'var(--Gd)' }}>{formatNaira(0)}</Mono>
+                      </td>
+                      <td>
+                        <Mono style={{ fontWeight: 700, color: 'var(--at)' }}>{formatNaira(r.commission)}</Mono>
+                      </td>
+                      <td>
+                        <Badge variant="amber">Pending</Badge>
                       </td>
                       <td>
                         <RoleGate show={showInvConfirmPay}>
@@ -707,14 +870,46 @@ export default function ReportsPage() {
             <KpiGrid cols={4}>
               <KpiCard label="GRNs / Restocks" value={String(restocks.length)} />
               <KpiCard label="Units Received" value={String(restockUnits)} accent="green" />
-              <KpiCard label="Catalog SKUs" value={String(products.length)} />
+              <KpiCard label="Write-offs (Value)" value={formatNaira(writeOffValue)} accent="red" smallValue />
               <KpiCard label="Open Variances" value={String(openVariances)} accent="amber" />
             </KpiGrid>
-            <div className="sdiv-label">Recent Restocks</div>
+            <div className="sdiv-label">Write-offs & Disposals</div>
             <DataTable>
               <thead>
                 <tr>
-                  <th>Restock</th>
+                  <th>Date</th>
+                  <th>SKU</th>
+                  <th>Product</th>
+                  <th>Variance</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recons.filter((r) => num(r.variance) < 0).length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ color: 'var(--tx3)' }}>No write-offs recorded.</td>
+                  </tr>
+                ) : (
+                  recons
+                    .filter((r) => num(r.variance) < 0)
+                    .slice(0, 12)
+                    .map((r) => (
+                      <tr key={r._id}>
+                        <td>{formatDate(r.countDate || r.creationDateTime)}</td>
+                        <td><Mono style={{ fontSize: 11 }}>{r.sku || '—'}</Mono></td>
+                        <td>{r.productName || '—'}</td>
+                        <td><Mono style={{ color: 'var(--rt)' }}>{r.variance}</Mono></td>
+                        <td><Badge variant="amber">{r.status || 'Open'}</Badge></td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </DataTable>
+            <div className="sdiv-label">GRN Summary</div>
+            <DataTable>
+              <thead>
+                <tr>
+                  <th>GRN No.</th>
                   <th>Supplier</th>
                   <th>Lines</th>
                   <th>Date</th>
@@ -755,21 +950,32 @@ export default function ReportsPage() {
         {activeTab === 'vat' && (
           <div className="rpt-section">
             <InfoBanner variant="warn">
-              Estimated output VAT at 7.5% on net sales. Confirm treatment with your tax advisor before filing.
+              <strong>VAT Filing Reminder:</strong> VAT Return Form 002 is due by the last day of next month. VAT
+              payable to FIRS: <strong>{formatNaira(vatPayable)}</strong>. NAFDAC-registered pharmaceutical medicines
+              are VAT exempt under the VAT Act 2019 (as amended). Personal care and FMCG products attract 7.5%.
             </InfoBanner>
             <KpiGrid cols={3}>
-              <KpiCard label="Net Sales Base" value={formatNaira(netSales)} accent="green" smallValue />
-              <KpiCard label="Output VAT (7.5%)" value={formatNaira(outputVat)} smallValue />
-              <KpiCard label="Paid Collections" value={formatNaira(paidTotal)} accent="green" smallValue />
+              <KpiCard label="Output VAT Collected (7.5%)" value={formatNaira(outputVat)} accent="green" smallValue />
+              <KpiCard label="Input VAT (paid on purchases)" value={formatNaira(inputVat)} accent="red" smallValue />
+              <KpiCard label="VAT Payable to FIRS" value={formatNaira(vatPayable)} smallValue />
             </KpiGrid>
             <Card>
-              <CardHeader title="VAT by Product Category" />
+              <CardHeader
+                title="VAT by Product Category"
+                action={
+                  <Button size="sm" variant="outline" onClick={() => showToast('Preparing VAT Return Form 002…', 'ok')}>
+                    Prepare VAT Return Form 002
+                  </Button>
+                }
+              />
               <table>
                 <thead>
                   <tr>
                     <th>Category</th>
+                    <th>VAT Treatment</th>
                     <th>SKUs</th>
-                    <th>Stock Units</th>
+                    <th>VAT Rate</th>
+                    <th>Est. Output VAT</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -782,17 +988,24 @@ export default function ReportsPage() {
                       acc[cat] = row;
                       return acc;
                     }, {}),
-                  ).map(([cat, row]) => (
-                    <tr key={cat}>
-                      <td>{cat}</td>
-                      <td>
-                        <Mono>{row.skus}</Mono>
-                      </td>
-                      <td>
-                        <Mono>{row.units.toLocaleString()}</Mono>
-                      </td>
-                    </tr>
-                  ))}
+                  ).map(([cat, row]) => {
+                    const exempt = /pharma|medicine|nafdac/i.test(cat);
+                    return (
+                      <tr key={cat}>
+                        <td>{cat}</td>
+                        <td>
+                          <Badge variant={exempt ? 'blue' : 'green'}>{exempt ? 'VAT Exempt' : 'Taxable'}</Badge>
+                        </td>
+                        <td>
+                          <Mono>{row.skus}</Mono>
+                        </td>
+                        <td>{exempt ? '0%' : '7.5%'}</td>
+                        <td>
+                          <Mono style={{ fontWeight: 700 }}>{exempt ? formatNaira(0) : '—'}</Mono>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </Card>
@@ -810,29 +1023,53 @@ export default function ReportsPage() {
               <thead>
                 <tr>
                   <th>Supplier</th>
+                  <th>GRNs</th>
+                  <th>Purchases</th>
+                  <th>Payments Made</th>
+                  <th>Outstanding</th>
                   <th>Contact</th>
-                  <th>Phone</th>
-                  <th>Branch</th>
                 </tr>
               </thead>
               <tbody>
                 {suppliers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ color: 'var(--tx3)' }}>
+                    <td colSpan={6} style={{ color: 'var(--tx3)' }}>
                       No suppliers yet.
                     </td>
                   </tr>
                 ) : (
-                  suppliers.map((s) => (
-                    <tr key={s._id}>
-                      <td>
-                        <strong>{s.name || '—'}</strong>
-                      </td>
-                      <td>{s.contactName || s.email || '—'}</td>
-                      <td>{s.contactNumber || s.phone || '—'}</td>
-                      <td>{s.branch || '—'}</td>
-                    </tr>
-                  ))
+                  suppliers.map((s) => {
+                    const mine = restocks.filter((r) => {
+                      const sid = typeof r.supplier === 'object' && r.supplier ? r.supplier._id : r.supplier;
+                      return sid === s._id;
+                    });
+                    const purchases = mine.reduce((sum, r) => {
+                      const lines = Array.isArray(r.products) ? r.products : [];
+                      return sum + lines.reduce((ls, p) => ls + num(p.quantity) * num(p.supplyPrice ?? p.sellingPrice), 0);
+                    }, 0);
+                    return (
+                      <tr key={s._id}>
+                        <td>
+                          <strong>{s.name || '—'}</strong>
+                        </td>
+                        <td>
+                          <Mono>{mine.length}</Mono>
+                        </td>
+                        <td>
+                          <Mono>{formatNaira(purchases)}</Mono>
+                        </td>
+                        <td>
+                          <Mono style={{ color: 'var(--Gd)' }}>{formatNaira(0)}</Mono>
+                        </td>
+                        <td>
+                          <Mono style={{ fontWeight: 700, color: purchases ? 'var(--at)' : undefined }}>
+                            {formatNaira(purchases)}
+                          </Mono>
+                        </td>
+                        <td>{s.contactName || s.email || '—'}</td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </DataTable>

@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { opsApi, type OpsVisit } from '../api/ops';
+import { useLocation } from '../context/LocationContext';
 import { productLabel, useLiveOptions } from '../hooks/useLiveOptions';
 import { formatDate } from '../utils/format';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
@@ -18,6 +19,7 @@ function personName(p: OpsVisit['merchandiser']) {
 
 export function FieldModals() {
   const { isOpen, closeModal, getPayload, showToast } = useModalActions();
+  const { pins, clearPin } = useLocation();
   const { products } = useLiveOptions();
   const [store, setStore] = useState('');
   const [recentStores, setRecentStores] = useState<string[]>([]);
@@ -71,7 +73,10 @@ export function FieldModals() {
         competitors: competitorsRef.current?.value.trim() || undefined,
         notes: notesRef.current?.value.trim() || undefined,
         photoCount: 0,
+        lat: pins.visit?.lat,
+        lng: pins.visit?.lng,
       });
+      clearPin('visit');
       closeModal('new-visit');
       showToast('Visit report submitted to management.', 'ok');
       window.dispatchEvent(new CustomEvent('crm-ops-changed'));
@@ -278,7 +283,19 @@ export function FieldModals() {
             ) : null}
             <div className="sdiv" />
             <SDivLabel>Store Location</SDivLabel>
-            <LocationCardSection context="visit" />
+            <LocationCardSection
+              context="visit"
+              entityId={visit._id}
+              initialPin={
+                visit.lat != null && visit.lng != null
+                  ? {
+                      lat: visit.lat,
+                      lng: visit.lng,
+                      label: visit.address || visit.storeName || 'Visit location',
+                    }
+                  : null
+              }
+            />
           </>
         )}
       </SartorModal>

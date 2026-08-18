@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { RoleGate } from '../components/ui/RoleGate';
 import type { ApiProduct } from '../api/catalog';
+import { catalogApi } from '../api/catalog';
 import { opsApi } from '../api/ops';
 import { useApp } from '../context/AppContext';
 import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
@@ -33,8 +34,12 @@ export function InventoryModals() {
   const { isCeo, displayName } = useApp();
   const { products, suppliers, warehouses } = useLiveOptions();
   const [grnRows, setGrnRows] = useState<GrnRow[]>([emptyGrnRow(1)]);
+  const [savingGrn, setSavingGrn] = useState(false);
+  const [grnWarehouseId, setGrnWarehouseId] = useState('');
+  const grnSupplierRef = useRef<HTMLSelectElement>(null);
+  const grnInvoiceRef = useRef<HTMLInputElement>(null);
 
-  const grnPayload = getPayload<{ product?: ApiProduct }>('grn');
+  const grnPayload = getPayload<{ product?: ApiProduct; warehouse?: { _id: string } }>('grn');
   const quarantinePayload = getPayload<{ product?: ApiProduct }>('quarantine-batch');
   const adjustPayload = getPayload<{ product?: ApiProduct }>('stock-adjust');
   const writeoffPayload = getPayload<{ product?: ApiProduct }>('stock-writeoff');
@@ -43,14 +48,16 @@ export function InventoryModals() {
   useEffect(() => {
     if (!grnOpen) {
       setGrnRows([emptyGrnRow(1)]);
+      setGrnWarehouseId('');
       return;
     }
+    setGrnWarehouseId(grnPayload?.warehouse?._id || '');
     const p = grnPayload?.product;
     if (p) {
       const sku = productSku(p);
       setGrnRows([emptyGrnRow(1, sku, productUnitPrice(p))]);
     }
-  }, [grnOpen, grnPayload?.product]);
+  }, [grnOpen, grnPayload?.product, grnPayload?.warehouse?._id]);
 
   const grnTotals = useMemo(() => {
     const lines = grnRows.filter((r) => r.sku);
@@ -97,7 +104,50 @@ export function InventoryModals() {
     </>
   );
 
-  const defaultSku = (p?: ApiProduct) => (p ? productSku(p) : '');
+  const saveGrn = async (btn: HTMLButtonElement | null) => {
+    const warehouse = grnWarehouseId;
+    const supplier = grnSupplierRef.current?.value || '';
+    const invoiceRef = grnInvoiceRef.current?.value.trim() || '';
+    const lines = grnRows
+      .map((r) => {
+        const p = products.find((x) => productSku(x) === r.sku);
+        return p && r.received > 0 ? { product: p._id, quantity: String(r.received) } : null;
+      })
+      .filter((x): x is { product: string; quantity: string } => Boolean(x));
+    if (!warehouse) {
+      showToast('Select the warehouse receiving this stock.', 'err');
+      return;
+    }
+    if (!supplier) {
+      showToast('Select a supplier.', 'err');
+      return;
+    }
+    if (!lines.length) {
+      showToast('Add at least one SKU with quantity received.', 'err');
+      return;
+    }
+    setSavingGrn(true);
+    const orig = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+    }
+    try {
+      await catalogApi.createRestock({ supplier, warehouse, invoiceRef, products: lines });
+      closeModal('grn');
+      setGrnRows([emptyGrnRow(1)]);
+      showToast('GRN saved. Stock added to the selected warehouse only.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to save GRN', 'err');
+    } finally {
+      setSavingGrn(false);
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = orig || 'Save & Generate GRN →';
+      }
+    }
+  };
 
   return (
     <>
@@ -118,13 +168,8 @@ export function InventoryModals() {
             </Button>
             <Button
               variant="green"
-              onClick={(e) =>
-                handleSubmit(
-                  'grn',
-                  e.currentTarget,
-                  'GRN generated. All batch records updated. GRN document ready to print.',
-                )
-              }
+              disabled={savingGrn}
+              onClick={(e) => void saveGrn(e.currentTarget)}
             >
               Save & Generate GRN →
             </Button>
@@ -132,8 +177,8 @@ export function InventoryModals() {
         }
       >
         <InfoBanner variant="succ" icon="check">
-          Saving this GRN creates batch records for <strong>every line item</strong> simultaneously and
-          links them to the same GRN number and supplier invoice.
+          Saving this GRN creates batch records for <strong>every line item</strong> at the receiving
+          warehouse you select. Other warehouses keep their own stock.
         </InfoBanner>
         <div style={{ background: 'var(--N)', borderRadius: 8, padding: '14px 16px', marginBottom: 14 }}>
           <div
@@ -148,30 +193,64 @@ export function InventoryModals() {
           >
             Delivery Details — applies to all items below
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1.5fr 1.2fr 1fr 1fr 1.2fr',
-              gap: 10,
-            }}
-          >
-            <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Supplier *</span>}>
-              <select className="sel" style={{ fontSize: 12 }}>
+          <div className="grn-del-1">
+            <div className="fg" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Supplier *</label>
+              <select ref={grnSupplierRef} className="sel" style={{ fontSize: 12 }}>
                 {supplierOptions}
               </select>
-            </FG>
-            <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Supplier Invoice No. *</span>}>
-              <input className="inp" style={{ fontSize: 12, fontFamily: "'DM Mono',monospace" }} placeholder="Invoice ref" />
-            </FG>
-            <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Invoice Date *</span>}>
+            </div>
+            <div className="fg" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Supplier Invoice No. *</label>
+              <input
+                ref={grnInvoiceRef}
+                className="inp"
+                style={{ fontSize: 12, fontFamily: "'DM Mono',monospace" }}
+                placeholder="e.g. WAC-2024-0891"
+              />
+            </div>
+            <div className="fg" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Invoice Date *</label>
               <input className="inp" type="date" style={{ fontSize: 12 }} />
-            </FG>
-            <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Receipt Date *</span>}>
+            </div>
+            <div className="fg" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Delivery / Receipt Date *</label>
               <input className="inp" type="date" style={{ fontSize: 12 }} />
-            </FG>
-            <FG label={<span style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Waybill No.</span>}>
-              <input className="inp" style={{ fontSize: 12 }} placeholder="Waybill / delivery ref" />
-            </FG>
+            </div>
+            <div className="fg" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Waybill / Delivery Note No.</label>
+              <input className="inp" style={{ fontSize: 12 }} placeholder="e.g. DLV-00123" />
+            </div>
+          </div>
+          <div className="grn-del-2">
+            <div className="fg" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Purchase Order Reference</label>
+              <input
+                className="inp"
+                style={{ fontSize: 12, fontFamily: "'DM Mono',monospace" }}
+                placeholder="PO-XXXX if applicable"
+              />
+            </div>
+            <div className="fg grn-wh" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Receiving Warehouse *</label>
+              <select
+                className="sel"
+                style={{ fontSize: 12 }}
+                value={grnWarehouseId}
+                onChange={(e) => setGrnWarehouseId(e.target.value)}
+              >
+                <option value="">Select warehouse…</option>
+                {warehouses.map((w) => (
+                  <option key={w._id} value={w._id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="fg" style={{ gap: 4, minWidth: 0 }}>
+              <label style={{ color: 'rgba(255,255,255,.7)', fontSize: 10 }}>Received By *</label>
+              <input className="inp" style={{ fontSize: 12 }} defaultValue={displayName} />
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>

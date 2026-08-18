@@ -2,15 +2,18 @@ import { Badge, Button, DataTable, InfoBanner, KpiCard, KpiGrid, Mono, PageHead,
 import { crmApi, leadName, refName, type CommissionRow } from '../api/crm';
 import { teamApi } from '../api/team';
 import { useModal } from '../context/ModalContext';
+import { useToast } from '../context/ToastContext';
 import { useAuthStore } from '../store/authStore';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useRoleGates } from '../hooks/useRoleGates';
 import { useTableFilter } from '../hooks/useTableFilter';
-import { formatDate, formatNaira, num } from '../utils/format';
+import { formatMonth, formatNaira, num } from '../utils/format';
+import { inThisMonth, isPaid } from '../utils/invoice';
 import { invoiceStatusVariant } from '../utils/statusBadges';
 
 export default function CommissionsPage() {
   const { openModal } = useModal();
+  const { showToast } = useToast();
   const { showInvConfirmPay } = useRoleGates();
   const user = useAuthStore((s) => s.user);
 
@@ -49,8 +52,13 @@ export default function CommissionsPage() {
       .some((v) => String(v).toLowerCase().includes(q)),
   );
 
+  const dueThisMonth = commissions
+    .filter((c) => inThisMonth(c.creationDateTime || c.dueDate) && !isPaid(c))
+    .reduce((s, c) => s + num(c.earned), 0);
   const totalEarned = commissions.reduce((s, c) => s + num(c.earned), 0);
-  const rateLabel = config?.price ? `÷ ${config.price}` : '—';
+  const paidOut = commissions.filter(isPaid).reduce((s, c) => s + num(c.earned), 0);
+  const outstanding = Math.max(0, totalEarned - paidOut);
+  const ratePct = config?.price ? `${config.price}%` : '—';
 
   return (
     <>
@@ -59,7 +67,7 @@ export default function CommissionsPage() {
         title="Commissions"
         subtitle="Calculated on confirmed invoices only."
         actions={
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => showToast('Exporting commissions…', 'ok')}>
             Export
           </Button>
         }
@@ -75,12 +83,12 @@ export default function CommissionsPage() {
       )}
 
       <KpiGrid cols={3}>
-        <KpiCard label="Total Earned" value={formatNaira(totalEarned)} smallValue />
-        <KpiCard label="Rate Config" value={rateLabel} accent="green" smallValue />
-        <KpiCard label="Entries" value={String(commissions.length)} accent="amber" />
+        <KpiCard label="Due This Month" value={formatNaira(dueThisMonth)} smallValue />
+        <KpiCard label="Paid Out" value={formatNaira(paidOut)} accent="green" smallValue />
+        <KpiCard label="Outstanding" value={formatNaira(outstanding)} accent="amber" smallValue />
       </KpiGrid>
 
-      <SearchBar placeholder="Search by rep, invoice or customer…" value={search} onChange={setSearch} />
+      <SearchBar placeholder="Search by rep, invoice or month…" value={search} onChange={setSearch} />
 
       <DataTable id="comm-table">
         <thead>
@@ -91,7 +99,7 @@ export default function CommissionsPage() {
             <th>Confirmed Amount</th>
             <th>Rate</th>
             <th>Commission</th>
-            <th>Date</th>
+            <th>Month</th>
             <th>Status</th>
             <th>Payout</th>
           </tr>
@@ -120,13 +128,15 @@ export default function CommissionsPage() {
                 <td>
                   <Mono>{formatNaira(num(c.totalAmount))}</Mono>
                 </td>
-                <td>{rateLabel}</td>
+                <td>{ratePct}</td>
                 <td>
                   <Mono style={{ fontWeight: 700, color: 'var(--N)' }}>{formatNaira(num(c.earned))}</Mono>
                 </td>
-                <td>{formatDate(c.creationDateTime || c.dueDate)}</td>
+                <td>{formatMonth(c.creationDateTime || c.dueDate)}</td>
                 <td>
-                  <Badge variant={invoiceStatusVariant(c.status)}>{c.status || '—'}</Badge>
+                  <Badge variant={invoiceStatusVariant(c.status)}>
+                    {isPaid(c) ? 'Paid Out' : c.status || 'Confirmed'}
+                  </Badge>
                 </td>
                 <td>
                   <RoleGate show={showInvConfirmPay}>

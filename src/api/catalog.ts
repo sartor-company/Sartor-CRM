@@ -18,8 +18,33 @@ export interface ApiProduct {
   batchNumber?: string;
   barcodeNumber?: string;
   lastRestock?: unknown;
-  batches?: unknown[];
+  batches?: ApiBatch[];
   expiryDate?: string;
+  committedQuantity?: number;
+  totalQuantityIn?: number;
+  reorderLevel?: number;
+  brandOwner?: string;
+  countryOfOrigin?: string;
+  licenceNumber?: string;
+  defaultPurchasePrice?: number | string;
+  warehouse?: { _id: string; name?: string } | string | null;
+  warehouseLabel?: string;
+  regulatoryLicences?: Array<{ authority?: string; number?: string; country?: string }>;
+}
+
+export interface ApiBatch {
+  _id: string;
+  batchNumber?: string;
+  quantity?: number;
+  quantityReceived?: number;
+  manufactureDate?: number;
+  expiryDate?: number;
+  status?: string;
+  invoiceNumber?: string;
+  supplyPrice?: number | string;
+  sellingPrice?: number | string;
+  supplier?: { _id?: string; name?: string } | string | null;
+  warehouse?: { _id?: string; name?: string } | string | null;
 }
 
 export interface ApiSupplier {
@@ -57,6 +82,11 @@ export interface ApiRestock {
   creationDateTime?: number;
   createdAt?: string;
   admin?: unknown;
+  warehouse?: { _id: string; name?: string } | string | null;
+  invoiceRef?: string;
+  user?: { _id: string; fullName?: string } | string | null;
+  status?: string;
+  expectedQuantity?: number;
 }
 
 export interface ApiStock {
@@ -134,7 +164,9 @@ export const catalogApi = {
 
   createRestock: async (body: {
     supplier: string;
-    products: Array<{ product: string; quantity: string }>;
+    warehouse?: string;
+    invoiceRef?: string;
+    products: Array<{ product: string; quantity: string | number }>;
   }) => {
     const res = await apiClient.post('/restock', body);
     return unwrap<{ restock: ApiRestock; restockProducts: ApiRestockProduct[] }>(res);

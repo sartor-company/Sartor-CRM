@@ -95,6 +95,9 @@
 
   .dd-menu{right:0;left:auto;max-width:calc(100vw - 32px)}
   .modal.wide,.modal.xwide{max-width:calc(100vw - 32px)}
+  .grn-del-1{grid-template-columns:1fr 1fr}
+  .grn-del-2{grid-template-columns:1fr 1fr}
+  .grn-wh{grid-column:1 / -1}
 }
 
 /* ── Small tablet / large phone (≤768px) ─────────────────── */
@@ -108,6 +111,8 @@
   .fg.w50,.fg.w33{width:100%;flex:none}
   .frow{flex-direction:column}
   .frow .fg{min-width:0;width:100%}
+  .grn-del-1,.grn-del-2{grid-template-columns:1fr!important}
+  .grn-wh{grid-column:auto}
 
   .irow{flex-direction:column;gap:2px;margin-bottom:10px}
   .ilbl{min-width:0}

@@ -1,10 +1,11 @@
 import { useMemo, useRef, useState } from 'react';
+import { LocationCardSection } from '../components/location/LocationCard';
 import { Button } from '../components/ui/Button';
 import { Icon, IconLabel } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
-import { leadName, type CrmCustomer } from '../api/crm';
+import { leadCoords, leadName, type CrmCustomer } from '../api/crm';
 import { opsApi, type OpsReturn } from '../api/ops';
 import { useApp } from '../context/AppContext';
 import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
@@ -38,6 +39,8 @@ export function FinanceModals() {
     goodsReturnPayload?.returnRow;
 
   const statementName = customerLabel(statementCustomer);
+  const statementLead =
+    statementCustomer && typeof statementCustomer.lead === 'object' ? statementCustomer.lead : null;
 
   const statementInvoices = useMemo(() => {
     if (!statementCustomer) return [];
@@ -396,6 +399,16 @@ export function FinanceModals() {
             <div className="kval kval-s">{formatNaira(statementTotals.due)}</div>
           </div>
         </div>
+        {statementLead ? (
+          <>
+            <SDivLabel>Location Pin</SDivLabel>
+            <LocationCardSection
+              context="lead"
+              entityId={statementLead._id}
+              initialPin={leadCoords(statementLead)}
+            />
+          </>
+        ) : null}
         <div className="tw">
           <table style={{ fontSize: 12 }}>
             <thead>

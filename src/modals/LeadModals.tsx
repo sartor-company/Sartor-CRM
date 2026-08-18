@@ -5,9 +5,10 @@ import { Button } from '../components/ui/Button';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { RoleGate } from '../components/ui/RoleGate';
-import { crmApi, refName, type CrmLead } from '../api/crm';
+import { crmApi, leadCoords, refName, type CrmLead } from '../api/crm';
 import { teamApi, type ApiTeamUser } from '../api/team';
 import { useApp } from '../context/AppContext';
+import { useLocation } from '../context/LocationContext';
 import { useRoleGates } from '../hooks/useRoleGates';
 import { formatDate } from '../utils/format';
 import { leadStatusVariant, toApiLeadStatus } from '../utils/statusBadges';
@@ -22,6 +23,26 @@ const BUSINESS_CATEGORIES = [
 ];
 
 const STATES = ['FCT — Abuja', 'Lagos', 'Kano', 'Rivers', 'Oyo', 'Kaduna'];
+
+const CONTACT_ROLES = [
+  'Owner / CEO / MD',
+  'Store Manager',
+  'Procurement Manager',
+  'Accountant',
+  'Other',
+];
+
+type ExtraContact = { id: string; name: string; role: string; phone: string; email: string };
+
+function newExtraContact(): ExtraContact {
+  return {
+    id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    name: '',
+    role: '',
+    phone: '',
+    email: '',
+  };
+}
 
 const LEAD_STAGES = [
   'Contacted',
@@ -41,8 +62,11 @@ export function LeadModals() {
   const { isOpen, closeModal, openModal, getPayload, showToast } = useModalActions();
   const { displayName, roleLabel } = useApp();
   const { showCeoAdmin } = useRoleGates();
+  const { pins, clearPin } = useLocation();
   const [saving, setSaving] = useState(false);
   const [staff, setStaff] = useState<ApiTeamUser[]>([]);
+  const [extraContacts, setExtraContacts] = useState<ExtraContact[]>([]);
+  const addLeadOpen = isOpen('add-lead');
 
   const lead =
     getPayload<{ lead?: CrmLead }>('lead-detail')?.lead ||
@@ -55,6 +79,12 @@ export function LeadModals() {
     ? [lead.lga, lead.state].filter(Boolean).join(', ') || lead.address || '—'
     : '—';
   const primaryContact = lead?.contacts?.[0];
+  const detailContacts =
+    lead?.contacts && lead.contacts.length > 0
+      ? lead.contacts
+      : primaryContact
+        ? [primaryContact]
+        : [];
 
   const nameRef = useRef<HTMLInputElement>(null);
   const typeRef = useRef<HTMLSelectElement>(null);
@@ -72,6 +102,10 @@ export function LeadModals() {
   const notesRef = useRef<HTMLTextAreaElement>(null);
   const statusRef = useRef<HTMLSelectElement>(null);
   const assignRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (addLeadOpen) setExtraContacts([]);
+  }, [addLeadOpen]);
 
   useEffect(() => {
     if (!isOpen('reassign-lead')) return;
@@ -113,6 +147,7 @@ export function LeadModals() {
       btn.textContent = 'Saving…';
     }
     try {
+      const pin = pins.lead;
       await crmApi.createLead({
         name,
         address: lga ? `${address}, ${lga}` : address,
@@ -124,6 +159,9 @@ export function LeadModals() {
         dealSize,
         status,
         notes: notes || undefined,
+        lat: pin?.lat,
+        lng: pin?.lng,
+        locationLabel: pin?.label,
         contact: [
           {
             name: contactName,
@@ -131,8 +169,17 @@ export function LeadModals() {
             phone: contactPhone,
             role: contactRoleRef.current?.value || undefined,
           },
+          ...extraContacts
+            .map((c) => ({
+              name: c.name.trim(),
+              email: c.email.trim() || undefined,
+              phone: c.phone.trim() || undefined,
+              role: c.role || undefined,
+            }))
+            .filter((c) => c.name),
         ],
       });
+      clearPin('lead');
       closeModal('add-lead');
       showToast('Lead saved successfully.', 'ok');
       window.dispatchEvent(new CustomEvent('crm-leads-changed'));
@@ -285,11 +332,9 @@ export function LeadModals() {
             <FG label="Role at Business *" className="w50">
               <select ref={contactRoleRef} className="sel" defaultValue="">
                 <option value="">Role…</option>
-                <option>Owner / CEO / MD</option>
-                <option>Store Manager</option>
-                <option>Procurement Manager</option>
-                <option>Accountant</option>
-                <option>Other</option>
+                {CONTACT_ROLES.map((r) => (
+                  <option key={r}>{r}</option>
+                ))}
               </select>
             </FG>
           </FRow>
@@ -315,6 +360,85 @@ export function LeadModals() {
             </FG>
           </FRow>
         </div>
+        {extraContacts.map((c, idx) => (
+          <div className="contact-row" key={c.id}>
+            <div className="contact-row-num">Contact {idx + 2}</div>
+            <button
+              type="button"
+              className="contact-del"
+              aria-label="Remove contact"
+              onClick={() => setExtraContacts((rows) => rows.filter((row) => row.id !== c.id))}
+            >
+              ✕
+            </button>
+            <FRow>
+              <FG label="Full Name *" className="w50">
+                <input
+                  className="inp"
+                  placeholder="Name"
+                  value={c.name}
+                  onChange={(e) =>
+                    setExtraContacts((rows) =>
+                      rows.map((row) => (row.id === c.id ? { ...row, name: e.target.value } : row)),
+                    )
+                  }
+                />
+              </FG>
+              <FG label="Role" className="w50">
+                <select
+                  className="sel"
+                  value={c.role}
+                  onChange={(e) =>
+                    setExtraContacts((rows) =>
+                      rows.map((row) => (row.id === c.id ? { ...row, role: e.target.value } : row)),
+                    )
+                  }
+                >
+                  <option value="">Role…</option>
+                  {CONTACT_ROLES.map((r) => (
+                    <option key={r}>{r}</option>
+                  ))}
+                </select>
+              </FG>
+            </FRow>
+            <FRow>
+              <FG label="Phone" className="w50">
+                <input
+                  className="inp"
+                  type="tel"
+                  placeholder="+234…"
+                  value={c.phone}
+                  onChange={(e) =>
+                    setExtraContacts((rows) =>
+                      rows.map((row) => (row.id === c.id ? { ...row, phone: e.target.value } : row)),
+                    )
+                  }
+                />
+              </FG>
+              <FG label="Email" className="w50">
+                <input
+                  className="inp"
+                  type="email"
+                  placeholder="email@…"
+                  value={c.email}
+                  onChange={(e) =>
+                    setExtraContacts((rows) =>
+                      rows.map((row) => (row.id === c.id ? { ...row, email: e.target.value } : row)),
+                    )
+                  }
+                />
+              </FG>
+            </FRow>
+          </div>
+        ))}
+        <Button
+          variant="outline"
+          size="sm"
+          style={{ marginBottom: 12 }}
+          onClick={() => setExtraContacts((rows) => [...rows, newExtraContact()])}
+        >
+          + Add Another Contact Person
+        </Button>
         <RoleGate show={showCeoAdmin}>
           <FRow>
             <FG label="Assign To" className="w50">
@@ -400,31 +524,35 @@ export function LeadModals() {
             <IRow label="Business" value={lead.name || '—'} />
             <IRow label="Address" value={lead.address || leadLoc} />
             <SDivLabel style={{ marginTop: 0 }}>Contacts</SDivLabel>
-            {primaryContact ? (
-              <div
-                style={{
-                  background: 'var(--bg)',
-                  border: '1px solid var(--brd)',
-                  borderRadius: 7,
-                  padding: '10px 12px',
-                  fontSize: 13,
-                }}
-              >
-                <strong>{primaryContact.name || '—'}</strong>{' '}
-                {primaryContact.role ? (
-                  <Badge variant="teal" style={{ fontSize: 10, marginLeft: 6 }}>
-                    {primaryContact.role}
-                  </Badge>
-                ) : null}
-                <br />
-                <span style={{ color: 'var(--tx3)' }}>
-                  {[primaryContact.phone, primaryContact.email].filter(Boolean).join(' · ') || '—'}
-                </span>
-              </div>
-            ) : (
+            {detailContacts.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--tx3)' }}>
                 {[lead.phone, lead.email].filter(Boolean).join(' · ') || 'No contact on file'}
               </div>
+            ) : (
+              detailContacts.map((c, i) => (
+                <div
+                  key={c._id || `${c.name}-${i}`}
+                  style={{
+                    background: 'var(--bg)',
+                    border: '1px solid var(--brd)',
+                    borderRadius: 7,
+                    padding: '10px 12px',
+                    fontSize: 13,
+                    marginBottom: i < detailContacts.length - 1 ? 8 : 0,
+                  }}
+                >
+                  <strong>{c.name || '—'}</strong>{' '}
+                  {c.role ? (
+                    <Badge variant="teal" style={{ fontSize: 10, marginLeft: 6 }}>
+                      {c.role}
+                    </Badge>
+                  ) : null}
+                  <br />
+                  <span style={{ color: 'var(--tx3)' }}>
+                    {[c.phone, c.email].filter(Boolean).join(' · ') || '—'}
+                  </span>
+                </div>
+              ))
             )}
             <div className="sdiv" />
             <IRow
@@ -435,7 +563,11 @@ export function LeadModals() {
             <IRow label="Created" value={formatDate(lead.creationDateTime)} />
             <div className="sdiv" />
             <SDivLabel>Location Pin</SDivLabel>
-            <LocationCardSection context="lead" />
+            <LocationCardSection
+              context="lead"
+              entityId={lead._id}
+              initialPin={leadCoords(lead)}
+            />
           </>
         )}
       </SartorModal>

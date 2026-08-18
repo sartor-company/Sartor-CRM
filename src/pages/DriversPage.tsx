@@ -18,6 +18,18 @@ function lpoLabel(active: { lpoId?: string } | string | null | undefined) {
   return active.lpoId || '—';
 }
 
+function hasAssignment(d: {
+  warehouse?: { _id?: string; name?: string } | string | null;
+  activeLpo?: { _id?: string; lpoId?: string } | string | null;
+  status?: string;
+}) {
+  const wh = d.warehouse;
+  const lpo = d.activeLpo;
+  const hasWh = Boolean(wh && (typeof wh === 'string' ? wh : wh._id || wh.name));
+  const hasLpo = Boolean(lpo && (typeof lpo === 'string' ? lpo : lpo._id || lpo.lpoId));
+  return hasWh || hasLpo || d.status === 'On Route';
+}
+
 export default function DriversPage() {
   const { openModal } = useModal();
   const { showToast } = useToast();
@@ -30,10 +42,15 @@ export default function DriversPage() {
     return () => window.removeEventListener('crm-ops-changed', onChange);
   }, [reload]);
 
-  const unassign = async (id: string) => {
+  const unassign = async (d: (typeof drivers)[number]) => {
     try {
-      await opsApi.unassignDriver(id);
-      showToast('Driver unassigned from delivery.', 'warn');
+      await opsApi.unassignDriver(d._id);
+      showToast(
+        d.activeLpo || d.status === 'On Route'
+          ? 'Driver unassigned from delivery.'
+          : `${d.name} unassigned from ${whName(d.warehouse)}.`,
+        'warn',
+      );
       void reload();
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Unassign failed', 'err');
@@ -121,8 +138,8 @@ export default function DriversPage() {
                           Assign WH
                         </Button>
                       </RoleGate>
-                      {delivery !== '—' && (
-                        <Button variant="secondary" size="xs" onClick={() => void unassign(d._id)}>
+                      {hasAssignment(d) && (
+                        <Button variant="secondary" size="xs" onClick={() => void unassign(d)}>
                           Unassign
                         </Button>
                       )}

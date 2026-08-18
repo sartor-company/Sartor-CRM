@@ -41,24 +41,38 @@ export default function GrnLogPage() {
         return prod?.productName || prod?.skuCode;
       })
       .filter(Boolean);
+    const receivedBy =
+      typeof r.user === 'object' && r.user ? r.user.fullName || '—' : typeof r.user === 'string' ? r.user : '—';
+    const warehouse =
+      typeof r.warehouse === 'object' && r.warehouse
+        ? r.warehouse.name || '—'
+        : '—';
+    const expected = num(r.expectedQuantity);
+    const short = expected > 0 && units < expected;
     return {
       id: r._id,
+      restock: r,
       grn: `GRN-${String(restocks!.length - idx).padStart(4, '0')}`,
       supplier,
+      warehouse,
+      supplierInvoice: r.invoiceRef || '—',
+      receivedBy,
       skus: `${products.length} SKU${products.length === 1 ? '' : 's'}${skuNames.length ? ` · ${skuNames.slice(0, 2).join(', ')}` : ''}`,
       units,
       value,
       date: formatDate(r.creationDateTime),
-      status: 'Accepted',
-      statusVariant: 'green' as const,
+      status: short ? `Short — ${expected - units} units pending` : r.status || 'Accepted',
+      statusVariant: (short ? 'amber' : 'green') as 'green' | 'amber',
+      short,
     };
   });
 
   const { search, setSearch, filtered } = useTableFilter(rows, '', (row, q) =>
-    [row.grn, row.supplier, row.skus].some((v) => v.toLowerCase().includes(q)),
+    [row.grn, row.supplier, row.warehouse, row.skus].some((v) => v.toLowerCase().includes(q)),
   );
 
   const totalUnits = rows.reduce((s, r) => s + r.units, 0);
+  const shortCount = rows.filter((r) => r.short).length;
 
   return (
     <>
@@ -81,12 +95,7 @@ export default function GrnLogPage() {
       <KpiGrid cols={3}>
         <KpiCard label="GRNs" value={String(rows.length)} accent="green" />
         <KpiCard label="Total Units Received" value={totalUnits.toLocaleString()} />
-        <KpiCard
-          label="Total Value"
-          value={formatNaira(rows.reduce((s, r) => s + r.value, 0))}
-          accent="amber"
-          smallValue
-        />
+        <KpiCard label="Short Deliveries Logged" value={String(shortCount)} accent="amber" />
       </KpiGrid>
 
       <SearchBar placeholder="Search GRNs by number, supplier or SKU…" value={search} onChange={setSearch} />
@@ -102,9 +111,12 @@ export default function GrnLogPage() {
             <tr>
               <th>GRN No.</th>
               <th>Supplier</th>
+              <th>Warehouse</th>
+              <th>Supplier Invoice</th>
               <th>SKUs Received</th>
               <th>Total Units</th>
               <th>Total Value</th>
+              <th>Received By</th>
               <th>Date</th>
               <th>Status</th>
               <th>Actions</th>
@@ -117,6 +129,10 @@ export default function GrnLogPage() {
                   <Mono style={{ fontWeight: 700 }}>{g.grn}</Mono>
                 </td>
                 <td>{g.supplier}</td>
+                <td>{g.warehouse}</td>
+                <td>
+                  <Mono style={{ fontSize: 11 }}>{g.supplierInvoice}</Mono>
+                </td>
                 <td>{g.skus}</td>
                 <td>
                   <Mono>{g.units.toLocaleString()}</Mono>
@@ -124,6 +140,7 @@ export default function GrnLogPage() {
                 <td>
                   <Mono style={{ fontWeight: 700, color: 'var(--N)' }}>{formatNaira(g.value)}</Mono>
                 </td>
+                <td>{g.receivedBy}</td>
                 <td>{g.date}</td>
                 <td>
                   <Badge variant={g.statusVariant}>{g.status}</Badge>

@@ -1,8 +1,6 @@
 import { Badge, Button, DataTable, InfoBanner, Mono, PageHead, QueryState } from '../components/ui';
 import { opsApi } from '../api/ops';
-import { crmApi } from '../api/crm';
 import { useModal } from '../context/ModalContext';
-import { useToast } from '../context/ToastContext';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { formatNaira, num } from '../utils/format';
 
@@ -20,18 +18,7 @@ function personName(p: { fullName?: string } | string | null | undefined) {
 
 export default function FinanceDashPage() {
   const { openModal } = useModal();
-  const { showToast } = useToast();
-  const { data: rows = [], loading, error, reload } = useApiQuery(() => opsApi.financeQueue(), []);
-
-  const confirmPaid = async (id: string) => {
-    try {
-      await crmApi.updateInvoiceStatus(id, 'Paid');
-      showToast('Payment confirmed.', 'ok');
-      void reload();
-    } catch (e) {
-      showToast(e instanceof Error ? e.message : 'Confirm failed', 'err');
-    }
-  };
+  const { data: rows = [], loading, error } = useApiQuery(() => opsApi.financeQueue(), []);
 
   return (
     <>
@@ -58,45 +45,47 @@ export default function FinanceDashPage() {
               <th>Invoice</th>
               <th>Customer</th>
               <th>Amount</th>
-              <th>Status</th>
+              <th>Paid</th>
               <th>Marked By</th>
               <th>First Invoice?</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {(rows ?? []).map((inv) => (
-              <tr key={inv._id}>
-                <td>
-                  <Mono style={{ fontSize: 12 }}>{inv.invoiceId || inv._id.slice(-6)}</Mono>
-                </td>
-                <td>{leadName(inv.lead) || inv.name || '—'}</td>
-                <td>
-                  <Mono>{formatNaira(num(inv.totalAmount))}</Mono>
-                </td>
-                <td>
-                  <Badge variant="amber">{inv.status}</Badge>
-                </td>
-                <td>{personName(inv.user)}</td>
-                <td>
-                  {inv.isFirstInvoice ? (
-                    <Badge variant="amber">Yes — Will Convert</Badge>
-                  ) : (
-                    <Badge variant="gray">No</Badge>
-                  )}
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    <Button variant="green" size="sm" onClick={() => void confirmPaid(inv._id)}>
+            {(rows ?? []).map((inv) => {
+              const paid = inv.paidAmount != null ? num(inv.paidAmount) : num(inv.totalAmount);
+              return (
+                <tr key={inv._id}>
+                  <td>
+                    <Mono style={{ fontSize: 12 }}>{inv.invoiceId || inv._id.slice(-6)}</Mono>
+                  </td>
+                  <td>{leadName(inv.lead) || inv.name || '—'}</td>
+                  <td>
+                    <Mono>{formatNaira(num(inv.totalAmount))}</Mono>
+                  </td>
+                  <td>
+                    <Mono>{formatNaira(paid)}</Mono>
+                  </td>
+                  <td>{personName(inv.user)}</td>
+                  <td>
+                    {inv.isFirstInvoice ? (
+                      <Badge variant="amber">Yes — Will Convert</Badge>
+                    ) : (
+                      <Badge variant="gray">No</Badge>
+                    )}
+                  </td>
+                  <td>
+                    <Button
+                      variant="green"
+                      size="sm"
+                      onClick={() => openModal('confirm-payment', { invoice: inv })}
+                    >
                       Confirm Full Payment →
                     </Button>
-                    <Button variant="outline" size="xs" onClick={() => openModal('confirm-payment')}>
-                      Details
-                    </Button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </DataTable>
       </QueryState>

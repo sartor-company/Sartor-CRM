@@ -57,8 +57,18 @@ export default function MerchDashboardPage() {
 
       <QueryState loading={loading} error={error}>
         <KpiGrid cols={4}>
-          <KpiCard label="Stores Visited" value={String(stores.length)} accent="blue" />
-          <KpiCard label="Visits Logged" value={String(visits.length)} accent="green" />
+          <KpiCard label="Stores Assigned" value={String(stores.length)} accent="blue" />
+          <KpiCard
+            label="Visits This Month"
+            value={String(visits.filter((v) => {
+              const t = Number(v.visitDate || v.creationDateTime || 0);
+              const start = new Date();
+              start.setDate(1);
+              start.setHours(0, 0, 0, 0);
+              return t >= start.getTime();
+            }).length)}
+            accent="green"
+          />
           <KpiCard
             label="Out-of-Stock Alerts"
             value={String(oosVisits.length || alerts.filter((a) => a.alert === 'Critical').length)}
@@ -78,7 +88,7 @@ export default function MerchDashboardPage() {
 
         <div className="g2 mb">
           <Card>
-            <CardHeader icon="store" title="Recent Stores" />
+            <CardHeader icon="store" title="My Assigned Stores" />
             {stores.length === 0 ? (
               <div style={{ padding: 12, color: 'var(--tx3)', fontSize: 13 }}>
                 No visits yet. Log a store visit to populate this list.
@@ -104,6 +114,8 @@ export default function MerchDashboardPage() {
                   <div className="merch-store-badge">
                     {s.oos > 0 ? (
                       <span className="oos-badge">{s.oos} OOS</span>
+                    ) : Date.now() - Number(s.visit.visitDate || s.visit.creationDateTime || 0) > 30 * 86_400_000 ? (
+                      <Badge variant="amber">Overdue</Badge>
                     ) : (
                       <Badge variant="green">OK</Badge>
                     )}
@@ -115,8 +127,8 @@ export default function MerchDashboardPage() {
           <Card>
             <CardHeader
               icon="package"
-              title="Catalog Snapshot"
-              subtitle={<span style={{ fontSize: 11, color: 'var(--tx3)' }}>Active products</span>}
+              title="SKU Shelf Check"
+              subtitle={<span style={{ fontSize: 11, color: 'var(--tx3)' }}>Found across visited stores</span>}
             />
             {products.length === 0 ? (
               <div style={{ padding: 12, color: 'var(--tx3)', fontSize: 13 }}>No products in catalog.</div>
@@ -126,13 +138,18 @@ export default function MerchDashboardPage() {
                   <tr>
                     <th>SKU</th>
                     <th>Product</th>
-                    <th>Stock</th>
+                    <th>Found In</th>
+                    <th>Avg Qty</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {products.slice(0, 8).map((p) => {
                     const qty = Number(p.totalQuantityAvailable ?? 0);
+                    const foundVisits = visits.filter((v) =>
+                      (v.products || []).some((line) => line.found && (line.label || '').includes(p.productName || '')),
+                    );
+                    const foundIn = foundVisits.length || visits.filter((v) => (v.skusFound ?? 0) > 0).length;
                     return (
                       <tr key={p._id}>
                         <td>
@@ -141,6 +158,9 @@ export default function MerchDashboardPage() {
                           </span>
                         </td>
                         <td>{p.productName || '—'}</td>
+                        <td>
+                          {foundIn}/{stores.length || visits.length || 0} stores
+                        </td>
                         <td style={{ fontFamily: "'DM Mono', monospace" }}>{qty.toLocaleString()}</td>
                         <td>
                           <Badge variant={qty <= 0 ? 'red' : qty < 100 ? 'amber' : 'green'}>

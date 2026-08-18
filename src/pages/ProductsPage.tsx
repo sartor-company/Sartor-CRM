@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import {
   ActionDropdown,
   Badge,
@@ -22,7 +23,13 @@ import { productStockVariant } from '../utils/statusBadges';
 export default function ProductsPage() {
   const { openModal } = useModal();
   const { showAddProduct, showProdEdit, showProdStock, showWhApprove, showCeoBatch } = useRoleGates();
-  const { data: products = [], loading, error } = useApiQuery(() => catalogApi.listProducts(), []);
+  const { data: products = [], loading, error, reload } = useApiQuery(() => catalogApi.listProducts(), []);
+
+  useEffect(() => {
+    const onChange = () => void reload();
+    window.addEventListener('crm-ops-changed', onChange);
+    return () => window.removeEventListener('crm-ops-changed', onChange);
+  }, [reload]);
 
   const rows = (products ?? []).map((p) => {
     const qty = Number(p.totalQuantityAvailable ?? 0);
@@ -40,6 +47,7 @@ export default function ProductsPage() {
       brand: p.manufacturer || '—',
       category: p.productCategory || '—',
       available: qty.toLocaleString(),
+      committed: Number(p.committedQuantity ?? 0).toLocaleString(),
       qty,
       price: formatNaira(p.sellingPrice ?? p.price),
       status,
@@ -60,11 +68,18 @@ export default function ProductsPage() {
         icon="package"
         title="Product Catalog"
         actions={
-          <RoleGate show={showAddProduct}>
-            <Button variant="green" size="sm" onClick={() => openModal('add-product')}>
-              + Add Product
-            </Button>
-          </RoleGate>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <RoleGate show={showProdStock}>
+              <Button variant="secondary" size="sm" onClick={() => openModal('grn')}>
+                Receive Stock
+              </Button>
+            </RoleGate>
+            <RoleGate show={showAddProduct}>
+              <Button variant="green" size="sm" onClick={() => openModal('add-product')}>
+                + Add Product
+              </Button>
+            </RoleGate>
+          </div>
         }
       />
 
@@ -94,6 +109,7 @@ export default function ProductsPage() {
               <th>Brand</th>
               <th>Category</th>
               <th>Available</th>
+              <th>Committed</th>
               <th>Selling Price</th>
               <th>Status</th>
               <th>Actions</th>
@@ -110,6 +126,9 @@ export default function ProductsPage() {
                 <td>{p.category}</td>
                 <td>
                   <Mono>{p.available}</Mono>
+                </td>
+                <td>
+                  <Mono>{p.committed}</Mono>
                 </td>
                 <td>
                   <Mono>{p.price}</Mono>

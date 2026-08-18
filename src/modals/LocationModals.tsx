@@ -6,7 +6,8 @@ import { Button } from '../components/ui/Button';
 import { IconLabel } from '../components/ui/Icon';
 import { NavButton } from '../components/ui/NavButton';
 import { SartorModal } from '../components/ui/SartorModal';
-import { LOC_DEFAULT, useLocation } from '../context/LocationContext';
+import { crmApi } from '../api/crm';
+import { LOC_DEFAULT, parseLocationPinKey, useLocation } from '../context/LocationContext';
 import { useRoleGates } from '../hooks/useRoleGates';
 import type { LocationPin } from '../types';
 import { useModalActions } from './helpers';
@@ -129,6 +130,25 @@ export function LocationModals() {
     );
   };
 
+  const persistPin = async (btn: HTMLButtonElement | null) => {
+    const pin = savePin(addressLabel);
+    const { context, entityId } = parseLocationPinKey(pickerContext);
+    if (pin && context === 'lead' && entityId) {
+      try {
+        await crmApi.updateLead(entityId, {
+          lat: pin.lat,
+          lng: pin.lng,
+          locationLabel: pin.label,
+        });
+        window.dispatchEvent(new CustomEvent('crm-leads-changed'));
+      } catch (e) {
+        showToast(e instanceof Error ? e.message : 'Failed to save location pin', 'err');
+        return;
+      }
+    }
+    handleSubmit('location-picker', btn, 'Location pin saved.');
+  };
+
   return (
     <>
       <SartorModal
@@ -147,8 +167,7 @@ export function LocationModals() {
             <Button
               variant="primary"
               onClick={(e) => {
-                savePin(addressLabel);
-                handleSubmit('location-picker', e.currentTarget, 'Location pin saved.');
+                void persistPin(e.currentTarget);
               }}
             >
               Save Pin

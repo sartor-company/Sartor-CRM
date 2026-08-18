@@ -53,8 +53,29 @@ export function useLiveOptions(enabled = true) {
     };
   }, [enabled]);
 
+  const uniqueCustomers = (() => {
+    const seen = new Set<string>();
+    const rows: CrmCustomer[] = [];
+    for (let i = customers.length - 1; i >= 0; i -= 1) {
+      const c = customers[i];
+      const leadId = typeof c.lead === 'object' && c.lead ? c.lead._id : c.lead;
+      const key = String(leadId || c._id);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(c);
+    }
+    return rows.reverse();
+  })();
+
+  const convertedLeadIds = new Set(
+    uniqueCustomers
+      .map((c) => (typeof c.lead === 'object' && c.lead ? c.lead._id : c.lead))
+      .filter(Boolean)
+      .map(String),
+  );
+
   const customerOptions = [
-    ...customers.map((c) => ({
+    ...uniqueCustomers.map((c) => ({
       id: c._id,
       label:
         (typeof c.lead === 'object' && c.lead ? leadName(c.lead) : null) ||
@@ -62,11 +83,13 @@ export function useLiveOptions(enabled = true) {
         c._id.slice(-6),
       kind: 'customer' as const,
     })),
-    ...leads.map((l) => ({
-      id: l._id,
-      label: `${l.name || 'Lead'}${l.state ? ` — ${l.state}` : ''}`,
-      kind: 'lead' as const,
-    })),
+    ...leads
+      .filter((l) => !convertedLeadIds.has(l._id))
+      .map((l) => ({
+        id: l._id,
+        label: `${l.name || 'Lead'}${l.state ? ` — ${l.state}` : ''}`,
+        kind: 'lead' as const,
+      })),
   ];
 
   return {
@@ -76,7 +99,7 @@ export function useLiveOptions(enabled = true) {
     drivers,
     invoices,
     leads,
-    customers,
+    customers: uniqueCustomers,
     customerOptions,
     loading,
   };

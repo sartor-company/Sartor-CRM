@@ -1,29 +1,223 @@
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
 import { RoleGate } from '../components/ui/RoleGate';
-import type { ApiProduct } from '../api/catalog';
+import { ActionDropdown } from '../components/ui/ActionDropdown';
+import type { ApiBatch, ApiProduct } from '../api/catalog';
+import { catalogApi } from '../api/catalog';
+import { opsApi, type OpsLpoRow } from '../api/ops';
 import { useLiveOptions, productSku } from '../hooks/useLiveOptions';
 import { useRoleGates } from '../hooks/useRoleGates';
-import { formatNaira, num } from '../utils/format';
+import { formatMonth, formatNaira, num } from '../utils/format';
 import { FG, FRow, IRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
+function dash(value: string | number | null | undefined) {
+  if (value == null || value === '') return '—';
+  return String(value);
+}
+
+function refName(value: { name?: string } | string | null | undefined) {
+  if (!value) return '—';
+  if (typeof value === 'string') return value;
+  return value.name || '—';
+}
+
+function productWarehouseLabel(p: ApiProduct) {
+  if (p.warehouseLabel) return p.warehouseLabel;
+  if (p.warehouse && typeof p.warehouse === 'object') return p.warehouse.name || '—';
+  const fromBatches = [
+    ...new Set(
+      (p.batches || [])
+        .map((b) => (b.warehouse && typeof b.warehouse === 'object' ? b.warehouse.name : null))
+        .filter(Boolean),
+    ),
+  ];
+  return fromBatches.join(', ') || '—';
+}
+
+function productLicence(p: ApiProduct) {
+  return p.licenceNumber || p.regulatoryLicences?.[0]?.number || '—';
+}
+
 export function ProductModals() {
-  const { isOpen, closeModal, openModal, getPayload, handleSubmit } = useModalActions();
+  const { isOpen, closeModal, openModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { showAddProduct, showProdEdit, showProdStock } = useRoleGates();
   const { warehouses } = useLiveOptions();
+  const packWarehouseRef = useRef<HTMLSelectElement>(null);
+  const addNameRef = useRef<HTMLInputElement>(null);
+  const addMfgRef = useRef<HTMLInputElement>(null);
+  const addBrandRef = useRef<HTMLInputElement>(null);
+  const addCatRef = useRef<HTMLSelectElement>(null);
+  const addOriginRef = useRef<HTMLInputElement>(null);
+  const addLicenceRef = useRef<HTMLInputElement>(null);
+  const addPriceRef = useRef<HTMLInputElement>(null);
+  const addPurchaseRef = useRef<HTMLInputElement>(null);
+  const addReorderRef = useRef<HTMLInputElement>(null);
+  const addWhRef = useRef<HTMLSelectElement>(null);
+  const editNameRef = useRef<HTMLInputElement>(null);
+  const editMfgRef = useRef<HTMLInputElement>(null);
+  const editBrandRef = useRef<HTMLInputElement>(null);
+  const editCatRef = useRef<HTMLInputElement>(null);
+  const editOriginRef = useRef<HTMLInputElement>(null);
+  const editLicenceRef = useRef<HTMLInputElement>(null);
+  const editPriceRef = useRef<HTMLInputElement>(null);
+  const editReorderRef = useRef<HTMLInputElement>(null);
 
   const viewProduct = getPayload<{ product?: ApiProduct }>('view-product')?.product;
   const editProduct =
     getPayload<{ product?: ApiProduct }>('edit-product')?.product ?? viewProduct;
   const approveProduct = getPayload<{ product?: ApiProduct }>('approve-stock')?.product;
+  const packPayload = getPayload<{ lpo?: OpsLpoRow; warehouseId?: string }>('pack-lpo');
+  const [detailProduct, setDetailProduct] = useState<ApiProduct | null>(null);
 
-  const viewSku = viewProduct ? productSku(viewProduct) : null;
-  const viewName = viewProduct?.productName || 'Select a product';
+  const viewOpen = isOpen('view-product');
+  useEffect(() => {
+    if (!viewOpen || !viewProduct?._id) {
+      setDetailProduct(null);
+      return;
+    }
+    let cancelled = false;
+    void catalogApi
+      .getProduct(viewProduct._id)
+      .then((p) => {
+        if (!cancelled) setDetailProduct(p);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailProduct(viewProduct);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewOpen, viewProduct?._id]);
+
+  const shown = detailProduct || viewProduct;
+
+  const viewSku = shown ? productSku(shown) : null;
+  const viewName = shown?.productName || 'Select a product';
   const viewTitle = viewSku ? `${viewSku} — ${viewName}` : 'Select a product';
-  const stockQty = Number(viewProduct?.totalQuantityAvailable ?? 0);
-  const selling = formatNaira(viewProduct?.sellingPrice ?? viewProduct?.price);
+  const availableQty = Number(shown?.totalQuantityAvailable ?? 0);
+  const committedQty = Number(shown?.committedQuantity ?? 0);
+  const qtyIn = Number(shown?.totalQuantityIn ?? availableQty + committedQty);
+  const uncommittedQty = Math.max(0, availableQty - committedQty);
+  const sellingPrice = num(shown?.sellingPrice ?? shown?.price);
+  const purchasePrice = num(shown?.defaultPurchasePrice ?? shown?.supplyPrice);
+  const margin = sellingPrice - purchasePrice;
+  const marginPct = sellingPrice > 0 ? Math.round((margin / sellingPrice) * 100) : 0;
+  const reorderLevel = Number(shown?.reorderLevel ?? 100);
+  const stockStatus =
+    availableQty <= 0
+      ? { label: 'Out of Stock', variant: 'red' as const }
+      : availableQty < reorderLevel
+        ? { label: 'Low Stock — Below Reorder Level', variant: 'amber' as const }
+        : { label: 'OK — Above Reorder Level', variant: 'green' as const };
+  const batches: ApiBatch[] = shown?.batches ?? [];
+  const expiredBatch = batches.find((b) => Number(b.expiryDate || 0) > 0 && Number(b.expiryDate) < Date.now());
+
+  const savePack = async (btn: HTMLButtonElement | null) => {
+    const lpo = packPayload?.lpo;
+    const warehouse = packWarehouseRef.current?.value || packPayload?.warehouseId || '';
+    if (!lpo?._id) {
+      showToast('Open Pack from an LPO in the pack queue.', 'err');
+      return;
+    }
+    if (!warehouse) {
+      showToast('Select the warehouse packing this LPO.', 'err');
+      return;
+    }
+    const orig = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Packing…';
+    }
+    try {
+      await opsApi.packLpo(lpo._id, warehouse);
+      closeModal('pack-lpo');
+      showToast('LPO packed. Stock deducted from the selected warehouse.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Pack failed', 'err');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = orig || 'Save Pack & Commit Stock →';
+      }
+    }
+  };
+
+  const saveAddProduct = async (btn: HTMLButtonElement | null) => {
+    const productName = addNameRef.current?.value.trim() || '';
+    const manufacturer = addMfgRef.current?.value.trim() || '';
+    const sellingPrice = Number(addPriceRef.current?.value);
+    if (!productName || !manufacturer || !Number.isFinite(sellingPrice) || sellingPrice <= 0) {
+      showToast('Product name, manufacturer and selling price are required.', 'err');
+      return;
+    }
+    const orig = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+    }
+    try {
+      await catalogApi.createProduct({
+        productName,
+        manufacturer,
+        brandOwner: addBrandRef.current?.value.trim() || manufacturer,
+        productCategory: addCatRef.current?.value || undefined,
+        countryOfOrigin: addOriginRef.current?.value.trim() || undefined,
+        licenceNumber: addLicenceRef.current?.value.trim() || undefined,
+        sellingPrice,
+        defaultPurchasePrice: Number(addPurchaseRef.current?.value) || undefined,
+        reorderLevel: Number(addReorderRef.current?.value) || undefined,
+        warehouse: addWhRef.current?.value || undefined,
+      });
+      closeModal('add-product');
+      showToast('Product added to catalog.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to add product', 'err');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = orig || 'Add Product';
+      }
+    }
+  };
+
+  const saveEditProduct = async (btn: HTMLButtonElement | null) => {
+    if (!editProduct?._id) {
+      showToast('Select a product to edit.', 'err');
+      return;
+    }
+    const orig = btn?.textContent;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Saving…';
+    }
+    try {
+      await catalogApi.updateProduct(editProduct._id, {
+        productName: editNameRef.current?.value.trim() || editProduct.productName,
+        manufacturer: editMfgRef.current?.value.trim() || undefined,
+        brandOwner: editBrandRef.current?.value.trim() || undefined,
+        productCategory: editCatRef.current?.value.trim() || undefined,
+        countryOfOrigin: editOriginRef.current?.value.trim() || undefined,
+        licenceNumber: editLicenceRef.current?.value.trim() || undefined,
+        sellingPrice: Number(editPriceRef.current?.value) || undefined,
+        reorderLevel: Number(editReorderRef.current?.value) || undefined,
+      });
+      closeModal('edit-product');
+      showToast('Product updated.', 'ok');
+      window.dispatchEvent(new CustomEvent('crm-ops-changed'));
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to update product', 'err');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = orig || 'Save Changes';
+      }
+    }
+  };
 
   return (
     <>
@@ -43,12 +237,12 @@ export function ProductModals() {
             <Button variant="secondary" onClick={() => closeModal('view-product')}>
               Close
             </Button>
-            <RoleGate show={showProdEdit && !!viewProduct}>
+            <RoleGate show={showProdEdit && !!shown}>
               <Button
                 variant="outline"
                 onClick={() => {
                   closeModal('view-product');
-                  openModal('edit-product', { product: viewProduct });
+                  openModal('edit-product', { product: shown });
                 }}
               >
                 Edit Product
@@ -57,7 +251,7 @@ export function ProductModals() {
           </>
         }
       >
-        {!viewProduct ? (
+        {!shown ? (
           <InfoBanner>No product selected. Open this modal from the product catalog.</InfoBanner>
         ) : (
           <>
@@ -69,54 +263,250 @@ export function ProductModals() {
                 <IRow
                   label="SKU"
                   value={
-                    <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>
-                      {viewSku}
-                    </span>
+                    <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>{viewSku}</span>
                   }
                 />
                 <IRow label="Product Name" value={viewName} />
-                <IRow label="Brand / Manufacturer" value={viewProduct.manufacturer || '—'} />
-                <IRow label="Category" value={viewProduct.productCategory || '—'} />
-                <IRow label="Status" value={viewProduct.status || '—'} />
+                <IRow label="Brand Owner" value={dash(shown.brandOwner || shown.manufacturer)} />
+                <IRow label="Manufacturer" value={dash(shown.manufacturer)} />
+                <IRow label="Category" value={dash(shown.productCategory)} />
+                <IRow
+                  label="Country of Origin"
+                  value={dash(shown.countryOfOrigin || shown.regulatoryLicences?.[0]?.country)}
+                />
+                <IRow
+                  label="Licence Number"
+                  value={
+                    <span style={{ fontFamily: "'DM Mono',monospace" }}>{productLicence(shown)}</span>
+                  }
+                />
+                <IRow label="Warehouse" value={productWarehouseLabel(shown)} />
               </div>
               <div className="card cp" style={{ marginBottom: 14 }}>
                 <div className="ch">
                   <span className="ct">Pricing & Stock Summary</span>
                 </div>
-                <IRow label="Selling Price" value={selling} />
                 <IRow
-                  label="Supply Price"
-                  value={formatNaira(viewProduct.supplyPrice ?? viewProduct.price)}
+                  label="Selling Price"
+                  value={
+                    <span
+                      style={{
+                        fontFamily: "'DM Mono',monospace",
+                        fontWeight: 700,
+                        color: 'var(--N)',
+                        fontSize: 16,
+                      }}
+                    >
+                      {formatNaira(sellingPrice)}
+                    </span>
+                  }
                 />
-                <IRow label="Available Stock" value={`${stockQty.toLocaleString()} units`} />
+                <IRow
+                  label="Default Purchase Price"
+                  value={
+                    <span style={{ fontFamily: "'DM Mono',monospace" }}>{formatNaira(purchasePrice)}</span>
+                  }
+                />
+                <IRow
+                  label="Gross Margin"
+                  value={
+                    <span style={{ fontWeight: 700, color: 'var(--Gd)' }}>
+                      {formatNaira(margin)} ({marginPct}%)
+                    </span>
+                  }
+                />
+                <div style={{ height: 1, background: 'var(--brd)', margin: '10px 0' }} />
+                <IRow
+                  label="Total Qty In"
+                  value={
+                    <span style={{ fontFamily: "'DM Mono',monospace" }}>
+                      {qtyIn.toLocaleString()} units
+                    </span>
+                  }
+                />
+                <IRow
+                  label="Available Stock"
+                  value={
+                    <span
+                      style={{
+                        fontFamily: "'DM Mono',monospace",
+                        fontWeight: 700,
+                        color: 'var(--Gd)',
+                      }}
+                    >
+                      {availableQty.toLocaleString()} units
+                    </span>
+                  }
+                />
+                <IRow
+                  label="Committed Qty"
+                  value={
+                    <span
+                      style={{
+                        fontFamily: "'DM Mono',monospace",
+                        fontWeight: 700,
+                        color: 'var(--at)',
+                      }}
+                    >
+                      {committedQty.toLocaleString()} units
+                    </span>
+                  }
+                />
+                <IRow
+                  label="Uncommitted Qty"
+                  value={
+                    <span
+                      style={{
+                        fontFamily: "'DM Mono',monospace",
+                        fontWeight: 700,
+                        color: 'var(--Gd)',
+                      }}
+                    >
+                      {uncommittedQty.toLocaleString()} units
+                    </span>
+                  }
+                />
+                <IRow
+                  label="Reorder Level"
+                  value={
+                    <span style={{ fontFamily: "'DM Mono',monospace" }}>
+                      {reorderLevel.toLocaleString()} units
+                    </span>
+                  }
+                />
                 <IRow
                   label="Stock Status"
-                  value={
-                    <Badge variant={stockQty <= 0 ? 'red' : stockQty < 100 ? 'amber' : 'green'}>
-                      {stockQty <= 0 ? 'Out of Stock' : stockQty < 100 ? 'Low Stock' : 'In Stock'}
-                    </Badge>
-                  }
+                  value={<Badge variant={stockStatus.variant}>{stockStatus.label}</Badge>}
                 />
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-              <SDivLabel style={{ margin: 0 }}>Inventory Batches</SDivLabel>
+              <SDivLabel style={{ margin: 0 }}>Inventory Batches — Full Traceability</SDivLabel>
               <RoleGate show={showProdStock}>
                 <Button
                   variant="green"
                   size="sm"
                   onClick={() => {
                     closeModal('view-product');
-                    openModal('add-batch', { product: viewProduct });
+                    openModal('add-batch', { product: shown });
                   }}
                 >
                   + Add Batch
                 </Button>
               </RoleGate>
             </div>
-            <InfoBanner>
-              Batch-level detail will appear here when inventory batches are linked to this SKU.
-            </InfoBanner>
+            {batches.length === 0 ? (
+              <InfoBanner>
+                No batches for this SKU yet. Receive stock (GRN) or add a batch to start traceability.
+              </InfoBanner>
+            ) : (
+              <div className="tw">
+                <table className="batch-table">
+                  <thead>
+                    <tr>
+                      <th>Batch No.</th>
+                      <th>Mfg Date</th>
+                      <th>Exp Date</th>
+                      <th>Qty In</th>
+                      <th>Available</th>
+                      <th>Committed</th>
+                      <th>Uncommitted</th>
+                      <th>Supplier</th>
+                      <th>Supplier Invoice</th>
+                      <th>Purchase Price</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batches.map((b) => {
+                      const qty = Number(b.quantity || 0);
+                      const received = Number(b.quantityReceived || b.quantity || 0);
+                      const expired = Number(b.expiryDate || 0) > 0 && Number(b.expiryDate) < Date.now();
+                      const pct = received > 0 ? Math.min(100, Math.round((qty / received) * 100)) : 100;
+                      return (
+                        <tr key={b._id} style={expired ? { background: 'rgba(239,68,68,.03)' } : undefined}>
+                          <td>
+                            <span style={{ fontFamily: "'DM Mono',monospace", fontWeight: 700 }}>
+                              {b.batchNumber || b._id.slice(-6)}
+                            </span>
+                          </td>
+                          <td>{formatMonth(b.manufactureDate)}</td>
+                          <td>
+                            <span style={expired ? { color: 'var(--rt)', fontWeight: 700 } : undefined}>
+                              {formatMonth(b.expiryDate)}
+                              {expired ? ' ⚠' : ''}
+                            </span>
+                          </td>
+                          <td style={{ fontFamily: "'DM Mono',monospace" }}>{received.toLocaleString()}</td>
+                          <td>
+                            <div>
+                              <span
+                                style={{
+                                  fontFamily: "'DM Mono',monospace",
+                                  fontWeight: 700,
+                                  color: expired ? 'var(--rt)' : 'var(--Gd)',
+                                }}
+                              >
+                                {qty.toLocaleString()}
+                              </span>
+                              <div className="batch-avail-bar">
+                                <div
+                                  className="batch-avail-fill"
+                                  style={{
+                                    width: `${pct}%`,
+                                    ...(expired ? { background: 'var(--red)' } : {}),
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td style={{ fontFamily: "'DM Mono',monospace" }}>0</td>
+                          <td
+                            style={{
+                              fontFamily: "'DM Mono',monospace",
+                              fontWeight: 700,
+                              color: expired ? 'var(--rt)' : 'var(--Gd)',
+                            }}
+                          >
+                            {qty.toLocaleString()}
+                          </td>
+                          <td>{refName(b.supplier)}</td>
+                          <td style={{ fontFamily: "'DM Mono',monospace", fontSize: 11 }}>
+                            {b.invoiceNumber || '—'}
+                          </td>
+                          <td style={{ fontFamily: "'DM Mono',monospace" }}>{formatNaira(b.supplyPrice)}</td>
+                          <td>
+                            <ActionDropdown
+                              items={[
+                                {
+                                  label: 'Edit Batch',
+                                  onClick: () => {
+                                    closeModal('view-product');
+                                    openModal('add-batch', { product: shown });
+                                  },
+                                },
+                                {
+                                  label: 'View Commits',
+                                  hidden: !showCeoBatch,
+                                  onClick: () => showToast('No committed LPOs on this batch yet.'),
+                                },
+                              ]}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {expiredBatch && (
+              <InfoBanner variant="warn" style={{ marginTop: 12 }}>
+                <strong>{expiredBatch.batchNumber || 'A batch'}</strong> has an expired Exp date (
+                {formatMonth(expiredBatch.expiryDate)}). This batch should be quarantined or disposed of per
+                company policy. Available count is shown but these units should not be committed.
+              </InfoBanner>
+            )}
           </>
         )}
       </SartorModal>
@@ -131,10 +521,7 @@ export function ProductModals() {
           size="wide"
           footer={
             <ModalFooterActions onCancel={() => closeModal('add-product')}>
-              <Button
-                variant="green"
-                onClick={(e) => handleSubmit('add-product', e.currentTarget, 'Product added to catalog.')}
-              >
+              <Button variant="green" onClick={(e) => void saveAddProduct(e.currentTarget)}>
                 Add Product
               </Button>
             </ModalFooterActions>
@@ -155,19 +542,19 @@ export function ProductModals() {
             </FG>
           </FRow>
           <FG label="Product Name *" full style={{ marginBottom: 10 }}>
-            <input className="inp" placeholder="Product name" />
+            <input ref={addNameRef} className="inp" placeholder="Product name" />
           </FG>
           <FRow>
             <FG label="Manufacturer *" className="w50">
-              <input className="inp" placeholder="Name of manufacturer" />
+              <input ref={addMfgRef} className="inp" placeholder="Name of manufacturer" />
             </FG>
             <FG label="Brand Owner *" className="w50">
-              <input className="inp" placeholder="Brand owner" />
+              <input ref={addBrandRef} className="inp" placeholder="Brand owner" />
             </FG>
           </FRow>
           <FRow>
             <FG label="Category *" className="w50">
-              <select className="sel">
+              <select ref={addCatRef} className="sel">
                 <option value="">Select…</option>
                 <option>Personal Care</option>
                 <option>Health Products</option>
@@ -175,23 +562,26 @@ export function ProductModals() {
               </select>
             </FG>
             <FG label="Country of Origin" className="w50">
-              <input className="inp" placeholder="e.g. Nigeria" />
+              <input ref={addOriginRef} className="inp" placeholder="e.g. Nigeria" />
             </FG>
           </FRow>
+          <FG label="Licence Number" full style={{ marginBottom: 10 }}>
+            <input ref={addLicenceRef} className="inp" placeholder="e.g. NAFDAC/01/XXXXX" />
+          </FG>
           <SDivLabel>Pricing & Stock</SDivLabel>
           <FRow>
             <FG label="Selling Price (₦) *" className="w33">
-              <input className="inp" type="number" placeholder="0.00" />
+              <input ref={addPriceRef} className="inp" type="number" placeholder="0.00" />
             </FG>
             <FG label="Default Purchase Price (₦)" className="w33">
-              <input className="inp" type="number" placeholder="0.00" />
+              <input ref={addPurchaseRef} className="inp" type="number" placeholder="0.00" />
             </FG>
             <FG label="Reorder Level *" className="w33">
-              <input className="inp" type="number" placeholder="300" />
+              <input ref={addReorderRef} className="inp" type="number" placeholder="300" />
             </FG>
           </FRow>
           <FG label="Assign to Warehouse *" full>
-            <select className="sel" defaultValue="">
+            <select ref={addWhRef} className="sel" defaultValue="">
               <option value="">Select warehouse…</option>
               {warehouses.map((w) => (
                 <option key={w._id} value={w._id}>
@@ -217,10 +607,7 @@ export function ProductModals() {
           size="wide"
           footer={
             <ModalFooterActions onCancel={() => closeModal('edit-product')}>
-              <Button
-                variant="primary"
-                onClick={(e) => handleSubmit('edit-product', e.currentTarget, 'Product updated.')}
-              >
+              <Button variant="primary" onClick={(e) => void saveEditProduct(e.currentTarget)}>
                 Save Changes
               </Button>
             </ModalFooterActions>
@@ -233,6 +620,7 @@ export function ProductModals() {
               <FRow>
                 <FG label="Product Name" className="w50">
                   <input
+                    ref={editNameRef}
                     className="inp"
                     key={`name-${editProduct._id}`}
                     defaultValue={editProduct.productName || ''}
@@ -240,6 +628,7 @@ export function ProductModals() {
                 </FG>
                 <FG label="Manufacturer" className="w50">
                   <input
+                    ref={editMfgRef}
                     className="inp"
                     key={`mfg-${editProduct._id}`}
                     defaultValue={editProduct.manufacturer || ''}
@@ -247,19 +636,58 @@ export function ProductModals() {
                 </FG>
               </FRow>
               <FRow>
+                <FG label="Brand Owner" className="w50">
+                  <input
+                    ref={editBrandRef}
+                    className="inp"
+                    key={`brand-${editProduct._id}`}
+                    defaultValue={editProduct.brandOwner || ''}
+                  />
+                </FG>
+                <FG label="Category" className="w50">
+                  <input
+                    ref={editCatRef}
+                    className="inp"
+                    key={`cat-${editProduct._id}`}
+                    defaultValue={editProduct.productCategory || ''}
+                  />
+                </FG>
+              </FRow>
+              <FRow>
+                <FG label="Licence Number" className="w50">
+                  <input
+                    ref={editLicenceRef}
+                    className="inp"
+                    key={`lic-${editProduct._id}`}
+                    defaultValue={editProduct.licenceNumber || ''}
+                  />
+                </FG>
+                <FG label="Country of Origin" className="w50">
+                  <input
+                    ref={editOriginRef}
+                    className="inp"
+                    key={`origin-${editProduct._id}`}
+                    defaultValue={editProduct.countryOfOrigin || ''}
+                  />
+                </FG>
+              </FRow>
+              <FRow>
                 <FG label="Selling Price (₦)" className="w50">
                   <input
+                    ref={editPriceRef}
                     className="inp"
                     type="number"
                     key={`price-${editProduct._id}`}
                     defaultValue={num(editProduct.sellingPrice ?? editProduct.price)}
                   />
                 </FG>
-                <FG label="Category" className="w50">
+                <FG label="Reorder Level" className="w50">
                   <input
+                    ref={editReorderRef}
                     className="inp"
-                    key={`cat-${editProduct._id}`}
-                    defaultValue={editProduct.productCategory || ''}
+                    type="number"
+                    key={`reo-${editProduct._id}`}
+                    defaultValue={Number(editProduct.reorderLevel ?? 100)}
                   />
                 </FG>
               </FRow>
@@ -331,26 +759,42 @@ export function ProductModals() {
         id="pack-lpo"
         open={isOpen('pack-lpo')}
         onClose={() => closeModal('pack-lpo')}
-        title="Pack LPO"
-        subtitle="Select batches and enter quantities. Available qty updates live. FEFO order recommended."
+        title={packPayload?.lpo ? `Pack LPO ${packPayload.lpo.lpoId || packPayload.lpo._id.slice(-6)}` : 'Pack LPO'}
+        subtitle="Stock is deducted from the warehouse you select — other locations are unchanged."
         size="wide"
         footer={
           <ModalFooterActions onCancel={() => closeModal('pack-lpo')}>
-            <Button
-              variant="green"
-              onClick={(e) =>
-                handleSubmit('pack-lpo', e.currentTarget, 'LPO packed. Stock committed.')
-              }
-            >
+            <Button variant="green" onClick={(e) => void savePack(e.currentTarget)}>
               Save Pack & Commit Stock →
             </Button>
           </ModalFooterActions>
         }
       >
         <InfoBanner>
-          <strong>Committed:</strong> Stock reserved when you save this pack. Validate all SKU totals
-          match LPO quantities before saving.
+          Packing deducts units from <strong>this warehouse only</strong>. If that location does not have
+          enough stock, the pack is rejected.
         </InfoBanner>
+        <FG label="Packing warehouse *" full style={{ marginTop: 10 }}>
+          <select
+            key={packPayload?.warehouseId || packPayload?.lpo?._id || 'pack-wh'}
+            ref={packWarehouseRef}
+            className="sel"
+            defaultValue={
+              packPayload?.warehouseId ||
+              (typeof packPayload?.lpo?.warehouse === 'object'
+                ? packPayload.lpo.warehouse?._id
+                : packPayload?.lpo?.warehouse) ||
+              ''
+            }
+          >
+            <option value="">Select warehouse…</option>
+            {warehouses.map((w) => (
+              <option key={w._id} value={w._id}>
+                {w.name}
+              </option>
+            ))}
+          </select>
+        </FG>
         <FG label="Packing Notes" full style={{ marginTop: 10 }}>
           <textarea className="ta" rows={2} placeholder="Notes for WH Manager or driver…" />
         </FG>

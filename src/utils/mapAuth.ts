@@ -71,6 +71,8 @@ export function mapLoginToProfile(data: Record<string, unknown>): CrmProfile {
     roleLabel:
       accountType === 'admin' ? 'CEO / Account Owner' : ROLE_LABELS[crmRole] || String(data.role || 'User'),
     tier: resolveTier(data.crmTier ?? data.crmTierType),
+    servicesScdora: data.servicesScdora === true,
+    scEnabled: data.scEnabled !== false,
     clientCode: data.clientCode as string | undefined,
     phone: data.phone as string | undefined,
     address: data.address as string | undefined,
