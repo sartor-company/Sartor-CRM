@@ -120,14 +120,14 @@ export default function Sartor360Page() {
               accent="blue"
             />
             <KpiCard
-              label="SMS Notifications"
+              label="Communication Credits"
               value={sms.toLocaleString()}
-              trend={sms < 1000 ? 'Consider topping up' : 'credits remaining'}
+              trend={sms < 1000 ? 'Consider topping up' : 'SMS + email remaining'}
               accent={sms < 1000 ? 'amber' : 'green'}
             />
           </KpiGrid>
           <p style={{ fontSize: 12, color: 'var(--tx3)', margin: '12px 0 10px', lineHeight: 1.5 }}>
-            Buy and manage PIN, SMS, and batch-calibration credits in Sartor-Chain + DORA.
+            Buy and manage PIN, communication, and batch-calibration credits in Sartor-Chain + DORA.
           </p>
           <PortalLink href={DORA_CREDITS}>Manage credits in Sartor-Chain + DORA ↗</PortalLink>
         </Card>
