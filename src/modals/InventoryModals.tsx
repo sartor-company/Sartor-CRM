@@ -36,7 +36,14 @@ function defaultSku(p?: ApiProduct) {
 export function InventoryModals() {
   const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { isCeo, displayName } = useApp();
-  const { products, suppliers, warehouses } = useLiveOptions();
+  const { products, suppliers, warehouses } = useLiveOptions(
+    isOpen('grn') ||
+      isOpen('quarantine-batch') ||
+      isOpen('stock-adjust') ||
+      isOpen('stock-writeoff') ||
+      isOpen('stock-recon-count') ||
+      isOpen('replenishment-request'),
+  );
   const [grnRows, setGrnRows] = useState<GrnRow[]>([emptyGrnRow(1)]);
   const [savingGrn, setSavingGrn] = useState(false);
   const [grnWarehouseId, setGrnWarehouseId] = useState('');

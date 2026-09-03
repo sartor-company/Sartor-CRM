@@ -32,22 +32,18 @@ export default function DashboardPage() {
     [],
   );
   const { data: extra } = useApiQuery(async () => {
-    const [invoices, leads, lpos, config, commissions] = await Promise.all([
+    const [invoices, config, commissions] = await Promise.all([
       crmApi.listInvoices().catch(() => []),
-      crmApi.listLeads().catch(() => []),
-      crmApi.listLpos().catch(() => []),
       crmApi.getCommissionConfig().catch(() => null),
       user?._id ? crmApi.listUserCommissions(user._id).catch(() => []) : Promise.resolve([]),
     ]);
-    return { invoices, leads, lpos, config, commissions };
+    return { invoices, config, commissions };
   }, [user?._id]);
 
   const invoices = extra?.invoices ?? [];
   const recent = invoices.slice(0, 5);
   const overdue = invoices.filter(isOverdue);
   const overdueAmt = overdue.reduce((s, i) => s + outstandingAmount(i), 0);
-  const activeLeads = (extra?.leads ?? []).filter((l) => l.status !== 'Closed Lost' && l.status !== 'Closed Won' && l.status !== 'Payment Confirmed').length;
-  const pendingLpos = (extra?.lpos ?? []).filter((l) => !/deliver|cancel/i.test(l.status || '')).length;
   const mtdRevenue = invoices
     .filter((i) => inThisMonth(i.creationDateTime || i.dueDate))
     .reduce((s, i) => s + num(i.totalAmount), 0);
@@ -94,13 +90,13 @@ export default function DashboardPage() {
           smallValue
         />
         <KpiCard
-          label="Active Leads"
-          value={String(activeLeads || cards?.totalCustomers || 0)}
+          label="Customers"
+          value={dashLoading ? '…' : String(cards?.totalCustomers ?? 0)}
           accent="green"
         />
         <KpiCard
-          label="Pending LPOs"
-          value={String(pendingLpos || cards?.totalLpos || 0)}
+          label="Total LPOs"
+          value={dashLoading ? '…' : String(cards?.totalLpos ?? 0)}
           accent="amber"
         />
         <KpiCard

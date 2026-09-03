@@ -20,7 +20,7 @@ function personName(p: OpsVisit['merchandiser']) {
 export function FieldModals() {
   const { isOpen, closeModal, getPayload, showToast } = useModalActions();
   const { pins, clearPin } = useLocation();
-  const { products } = useLiveOptions();
+  const { products } = useLiveOptions(isOpen('new-visit') || isOpen('market-intel') || isOpen('visit-detail'));
   const [store, setStore] = useState('');
   const [recentStores, setRecentStores] = useState<string[]>([]);
   const [savingVisit, setSavingVisit] = useState(false);

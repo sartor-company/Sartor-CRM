@@ -65,7 +65,16 @@ export function BillingModals() {
   const [sartorInvoices, setSartorInvoices] = useState<SartorInvoice[]>([]);
   const [convBilling, setConvBilling] = useState<BillingCycle>('monthly');
 
+  const billingOpen =
+    isOpen('sartor-invoice') ||
+    isOpen('change-plan') ||
+    isOpen('billing-cycle') ||
+    isOpen('pilot-convert') ||
+    isOpen('payment-gateway') ||
+    isOpen('domain-upgrade');
+
   useEffect(() => {
+    if (!billingOpen) return;
     if (!useAuthStore.getState().token) return;
     let cancelled = false;
     void billingApi
@@ -80,7 +89,7 @@ export function BillingModals() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [billingOpen]);
 
   const changePlanOpen = isOpen('change-plan');
   useEffect(() => {

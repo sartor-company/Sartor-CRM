@@ -1,4 +1,4 @@
-import { apiClient, unwrap } from './client';
+import { apiClient, cachedGet, listParams, unwrap, invalidateRequestCache } from './client';
 
 export interface ApiProduct {
   _id: string;
@@ -100,14 +100,12 @@ export interface ApiStock {
   user?: unknown;
 }
 
-function listParams(search?: string) {
-  return { limit: 'all' as const, ...(search ? { search } : {}) };
-}
-
 export const catalogApi = {
-  listProducts: async (search?: string) => {
-    const res = await apiClient.get('/products', { params: listParams(search) });
-    const data = unwrap<{ data: ApiProduct[] }>(res);
+  listProducts: async (search?: string, opts?: { lean?: boolean }) => {
+    const data = await cachedGet<{ data: ApiProduct[] }>(
+      '/products',
+      listParams(search, opts),
+    );
     return data.data ?? [];
   },
 
@@ -118,17 +116,21 @@ export const catalogApi = {
 
   createProduct: async (body: Record<string, unknown>) => {
     const res = await apiClient.post('/product', body);
+    invalidateRequestCache('/products');
     return unwrap<ApiProduct>(res);
   },
 
   updateProduct: async (id: string, body: Record<string, unknown>) => {
     const res = await apiClient.put(`/product/edit/${id}`, body);
+    invalidateRequestCache('/products');
     return unwrap<ApiProduct>(res);
   },
 
-  listSuppliers: async (search?: string) => {
-    const res = await apiClient.get('/suppliers', { params: listParams(search) });
-    const data = unwrap<{ data: ApiSupplier[] }>(res);
+  listSuppliers: async (search?: string, opts?: { lean?: boolean }) => {
+    const data = await cachedGet<{ data: ApiSupplier[] }>(
+      '/suppliers',
+      listParams(search, opts),
+    );
     return data.data ?? [];
   },
 
@@ -143,17 +145,21 @@ export const catalogApi = {
     branch?: string;
   }) => {
     const res = await apiClient.post('/supplier', body);
+    invalidateRequestCache('/suppliers');
     return unwrap<ApiSupplier>(res);
   },
 
   updateSupplier: async (id: string, body: Record<string, unknown>) => {
     const res = await apiClient.put(`/supplier/edit/${id}`, body);
+    invalidateRequestCache('/suppliers');
     return unwrap<ApiSupplier>(res);
   },
 
   listRestocks: async (search?: string) => {
-    const res = await apiClient.get('/restocks', { params: listParams(search) });
-    const data = unwrap<{ data: ApiRestock[] }>(res);
+    const data = await cachedGet<{ data: ApiRestock[] }>(
+      '/restocks',
+      listParams(search),
+    );
     return data.data ?? [];
   },
 
@@ -169,18 +175,24 @@ export const catalogApi = {
     products: Array<{ product: string; quantity: string | number }>;
   }) => {
     const res = await apiClient.post('/restock', body);
+    invalidateRequestCache('/restocks');
+    invalidateRequestCache('/products');
     return unwrap<{ restock: ApiRestock; restockProducts: ApiRestockProduct[] }>(res);
   },
 
   listStocks: async (search?: string) => {
-    const res = await apiClient.get('/stocks', { params: listParams(search) });
-    const data = unwrap<{ data: ApiStock[] }>(res);
+    const data = await cachedGet<{ data: ApiStock[] }>(
+      '/stocks',
+      listParams(search),
+    );
     return data.data ?? [];
   },
 
   listCompanyStocks: async (search?: string) => {
-    const res = await apiClient.get('/stocks/company', { params: listParams(search) });
-    const data = unwrap<{ data: ApiStock[] }>(res);
+    const data = await cachedGet<{ data: ApiStock[] }>(
+      '/stocks/company',
+      listParams(search),
+    );
     return data.data ?? [];
   },
 };

@@ -78,6 +78,7 @@ export type ModalId =
   | 'stock-writeoff'
   | 'stock-adjust'
   | 'customer-statement'
+  | 'edit-customer'
   | 'grn'
   | 'quarantine-batch'
   | 'stock-recon-count'

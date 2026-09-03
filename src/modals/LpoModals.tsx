@@ -4,10 +4,11 @@ import { Icon, IconLabel } from '../components/ui/Icon';
 import { Badge } from '../components/ui/Badge';
 import { InfoBanner } from '../components/ui/InfoBanner';
 import { SartorModal } from '../components/ui/SartorModal';
-import { crmApi, leadName, refName, type CrmCustomer, type CrmLead, type CrmLpo } from '../api/crm';
+import { crmApi, leadName, lpoCreatedBy, type CrmCustomer, type CrmLead, type CrmLpo } from '../api/crm';
 import { useApp } from '../context/AppContext';
-import { productLabel, productSku, useLiveOptions } from '../hooks/useLiveOptions';
+import { productLabel, productSku, useLiveOptions, invalidateLiveOptions } from '../hooks/useLiveOptions';
 import { formatNaira, num } from '../utils/format';
+import { downloadLpoExcel, downloadLpoPdf } from '../utils/lpoExport';
 import { lpoStatusVariant } from '../utils/statusBadges';
 import { FG, FRow, ModalFooterActions, SDivLabel, useModalActions } from './helpers';
 
@@ -24,7 +25,9 @@ const TERMS_TO_API: Record<string, string> = {
 export function LpoModals() {
   const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { companyName, displayName, roleLabel } = useApp();
-  const { products, customerOptions, customers, drivers } = useLiveOptions();
+  const { products, customerOptions, customers, drivers } = useLiveOptions(
+    isOpen('create-lpo') || isOpen('view-lpo') || isOpen('dispatch-lpo'),
+  );
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
   const [customer, setCustomer] = useState('');
@@ -33,6 +36,30 @@ export function LpoModals() {
 
   const lpo = getPayload<{ lpo?: CrmLpo }>('view-lpo')?.lpo;
   const createPayload = getPayload<{ customer?: CrmCustomer; lead?: CrmLead }>('create-lpo');
+  const [detailLpo, setDetailLpo] = useState<CrmLpo | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const viewLpoOpen = isOpen('view-lpo');
+  useEffect(() => {
+    if (!viewLpoOpen || !lpo?._id) {
+      setDetailLpo(null);
+      return;
+    }
+    let cancelled = false;
+    crmApi
+      .getLpo(lpo._id)
+      .then((full) => {
+        if (!cancelled) setDetailLpo(full);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailLpo(lpo);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewLpoOpen, lpo?._id]);
+
+  const activeLpo = detailLpo || lpo;
 
   const resetWizard = () => {
     setStep(1);
@@ -120,6 +147,7 @@ export function LpoModals() {
         terms: apiTerms,
         product: lines.map((i) => ({ product: i.product, quantity: i.qty })),
       });
+      invalidateLiveOptions();
       closeModal('create-lpo');
       resetWizard();
       showToast('LPO submitted for warehouse review.', 'ok');
@@ -135,8 +163,111 @@ export function LpoModals() {
     }
   };
 
-  const lpoId = lpo?.lpoId || (lpo ? lpo._id.slice(-6) : 'LPO');
-  const lpoCustomer = lpo ? leadName(typeof lpo.lead === 'object' ? lpo.lead : null) : '—';
+  const lpoId = activeLpo?.lpoId || (activeLpo ? activeLpo._id.slice(-6) : 'LPO');
+  const lpoCustomer = activeLpo
+    ? leadName(typeof activeLpo.lead === 'object' ? activeLpo.lead : null)
+    : '—';
+
+  const buildExportRows = () => {
+    const rows = (activeLpo?.products || []).map((line) => {
+      const prod = typeof line.product === 'object' && line.product ? line.product : null;
+      const qty = Number(line.quantity) || 0;
+      const unit = Number(line.unitPrice ?? line.price ?? prod?.unitPrice ?? prod?.price) || 0;
+      return {
+        sku: prod?.skuCode || prod?.sku || prod?.productSku || prod?.productId || prod?.barcodeNumber || '—',
+        product: prod?.productName || '—',
+        qty,
+        unitPrice: unit,
+        subtotal: Number(line.amount) || qty * unit,
+      };
+    });
+    return {
+      lpoId: String(lpoId),
+      companyName,
+      customerName: lpoCustomer,
+      createdBy: lpoCreatedBy(activeLpo),
+      terms: activeLpo?.terms || '—',
+      status: activeLpo?.status || '—',
+      rows,
+      grandTotal: num(activeLpo?.totalAmount) || rows.reduce((s, r) => s + r.subtotal, 0),
+    };
+  };
+
+  const exportPdf = async () => {
+    if (!activeLpo) return;
+    setExporting(true);
+    try {
+      if (!detailLpo && activeLpo._id) {
+        const full = await crmApi.getLpo(activeLpo._id);
+        setDetailLpo(full);
+        downloadLpoPdf({
+          ...buildExportRows(),
+          rows: (full.products || []).map((line) => {
+            const prod = typeof line.product === 'object' && line.product ? line.product : null;
+            const qty = Number(line.quantity) || 0;
+            const unit = Number(line.unitPrice ?? line.price ?? prod?.unitPrice ?? prod?.price) || 0;
+            return {
+              sku: prod?.skuCode || prod?.sku || prod?.productSku || prod?.productId || prod?.barcodeNumber || '—',
+              product: prod?.productName || '—',
+              qty,
+              unitPrice: unit,
+              subtotal: Number(line.amount) || qty * unit,
+            };
+          }),
+          grandTotal: num(full.totalAmount),
+          createdBy: lpoCreatedBy(full),
+          terms: full.terms || '—',
+          status: full.status || '—',
+        });
+      } else {
+        downloadLpoPdf(buildExportRows());
+      }
+      showToast('PDF downloaded.', 'ok');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'PDF download failed', 'err');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportExcel = async () => {
+    if (!activeLpo) return;
+    setExporting(true);
+    try {
+      if (!detailLpo && activeLpo._id) {
+        const full = await crmApi.getLpo(activeLpo._id);
+        setDetailLpo(full);
+        downloadLpoExcel({
+          lpoId: String(full.lpoId || full._id.slice(-6)),
+          companyName,
+          customerName: leadName(typeof full.lead === 'object' ? full.lead : null),
+          createdBy: lpoCreatedBy(full),
+          terms: full.terms || '—',
+          status: full.status || '—',
+          rows: (full.products || []).map((line) => {
+            const prod = typeof line.product === 'object' && line.product ? line.product : null;
+            const qty = Number(line.quantity) || 0;
+            const unit = Number(line.unitPrice ?? line.price ?? prod?.unitPrice ?? prod?.price) || 0;
+            return {
+              sku: prod?.skuCode || prod?.sku || prod?.productSku || prod?.productId || prod?.barcodeNumber || '—',
+              product: prod?.productName || '—',
+              qty,
+              unitPrice: unit,
+              subtotal: Number(line.amount) || qty * unit,
+            };
+          }),
+          grandTotal: num(full.totalAmount),
+        });
+      } else {
+        downloadLpoExcel(buildExportRows());
+      }
+      showToast('Excel downloaded.', 'ok');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Excel download failed', 'err');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <>
@@ -387,10 +518,10 @@ export function LpoModals() {
                         items
                           .filter((i) => i.product)
                           .map((i, idx) => {
-                            const p = products.find((x) => productSku(x) === i.product);
+                            const p = products.find((x) => x._id === i.product);
                             return (
                               <tr key={idx}>
-                                <td>{i.product}</td>
+                                <td>{p ? productSku(p) : '—'}</td>
                                 <td>{p?.productName || '—'}</td>
                                 <td style={{ textAlign: 'right' }}>{i.qty}</td>
                                 <td style={{ textAlign: 'right' }}>{formatNaira(i.price)}</td>
@@ -429,8 +560,8 @@ export function LpoModals() {
         onClose={() => closeModal('view-lpo')}
         title={lpoId}
         subtitle={
-          lpo
-            ? `${lpoCustomer} · ${lpo.status || '—'} · ${lpo.terms || '—'}`
+          activeLpo
+            ? `${lpoCustomer} · ${activeLpo.status || '—'} · ${activeLpo.terms || '—'}`
             : 'Open an LPO from the list'
         }
         size="wide"
@@ -439,16 +570,16 @@ export function LpoModals() {
             <Button variant="secondary" onClick={() => closeModal('view-lpo')}>
               Close
             </Button>
-            <Button variant="outline" onClick={() => showToast('Downloading PDF…')}>
+            <Button variant="outline" disabled={exporting || !activeLpo} onClick={() => void exportPdf()}>
               <IconLabel icon="download" size={13}>PDF</IconLabel>
             </Button>
-            <Button variant="outline" onClick={() => showToast('Downloading Excel…')}>
+            <Button variant="outline" disabled={exporting || !activeLpo} onClick={() => void exportExcel()}>
               <IconLabel icon="download" size={13}>Excel</IconLabel>
             </Button>
           </>
         }
       >
-        {!lpo ? (
+        {!activeLpo ? (
           <InfoBanner>No LPO selected.</InfoBanner>
         ) : (
           <div className="lpo-doc">
@@ -457,7 +588,7 @@ export function LpoModals() {
                 <div className="lpo-doc-title">Purchase Order</div>
                 <div className="lpo-doc-ref">{lpoId}</div>
               </div>
-              <Badge variant={lpoStatusVariant(lpo.status)}>{lpo.status || '—'}</Badge>
+              <Badge variant={lpoStatusVariant(activeLpo.status)}>{activeLpo.status || '—'}</Badge>
             </div>
             <div className="lpo-doc-body">
               <div className="inv-party">
@@ -473,22 +604,56 @@ export function LpoModals() {
               <div className="inv-party" style={{ marginTop: -8 }}>
                 <div>
                   <div className="inv-party-lbl">Created By</div>
-                  <div className="inv-party-val">{refName(lpo.user)}</div>
+                  <div className="inv-party-val">{lpoCreatedBy(activeLpo)}</div>
                 </div>
                 <div>
                   <div className="inv-party-lbl">Terms</div>
-                  <div className="inv-party-val">{lpo.terms || '—'}</div>
+                  <div className="inv-party-val">{activeLpo.terms || '—'}</div>
                 </div>
               </div>
+              {(activeLpo.products?.length ?? 0) > 0 && (
+                <div className="inv-items">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>SKU</th>
+                        <th>Product</th>
+                        <th style={{ textAlign: 'right' }}>Qty</th>
+                        <th style={{ textAlign: 'right' }}>Unit Price</th>
+                        <th style={{ textAlign: 'right' }}>Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {activeLpo.products!.map((line, idx) => {
+                        const prod =
+                          typeof line.product === 'object' && line.product ? line.product : null;
+                        const qty = Number(line.quantity) || 0;
+                        const unit =
+                          Number(line.unitPrice ?? line.price ?? prod?.unitPrice ?? prod?.price) || 0;
+                        const sub = Number(line.amount) || qty * unit;
+                        return (
+                          <tr key={line._id || idx}>
+                            <td>{prod?.skuCode || prod?.sku || prod?.productSku || prod?.productId || prod?.barcodeNumber || '—'}</td>
+                            <td>{prod?.productName || '—'}</td>
+                            <td style={{ textAlign: 'right' }}>{qty}</td>
+                            <td style={{ textAlign: 'right' }}>{formatNaira(unit)}</td>
+                            <td style={{ textAlign: 'right' }}>{formatNaira(sub)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
               <div className="inv-total">
                 <div className="inv-total-box">
                   <div className="inv-total-row">
                     <span>Quantity</span>
-                    <span>{lpo.totalQuantity ?? '—'}</span>
+                    <span>{activeLpo.totalQuantity ?? '—'}</span>
                   </div>
                   <div className="inv-total-row grand">
                     <span>Grand Total</span>
-                    <span>{formatNaira(num(lpo.totalAmount))}</span>
+                    <span>{formatNaira(num(activeLpo.totalAmount))}</span>
                   </div>
                 </div>
               </div>

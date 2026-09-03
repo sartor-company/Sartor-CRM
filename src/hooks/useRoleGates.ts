@@ -8,6 +8,7 @@ export function useRoleGates() {
     () => ({
       role,
       showCeoAdmin: isCeoAdmin,
+      showCustEdit: isCeoAdmin,
       showInvAddPay: isCeo || role === 'admin' || isRep,
       showInvMarkPaid: role === 'admin' || isRep,
       showInvConfirmPay: isCeo || isFinance,

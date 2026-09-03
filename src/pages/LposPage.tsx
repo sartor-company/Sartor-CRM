@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Badge, Button, DataTable, InfoBanner, Mono, PageHead, SearchBar } from '../components/ui';
-import { crmApi, leadName, refName, type CrmInvoice, type CrmLpo } from '../api/crm';
+import { crmApi, leadName, lpoCreatedBy, type CrmInvoice, type CrmLpo } from '../api/crm';
 import { useModal } from '../context/ModalContext';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useTableFilter } from '../hooks/useTableFilter';
@@ -27,7 +27,7 @@ export default function LposPage() {
   const invoices = data?.invoices ?? [];
 
   const { search, setSearch, filtered } = useTableFilter(lpos, '', (row: CrmLpo, q) =>
-    [row.lpoId, leadName(typeof row.lead === 'object' ? row.lead : null), row.status, refName(row.user)]
+    [row.lpoId, leadName(typeof row.lead === 'object' ? row.lead : null), row.status, lpoCreatedBy(row)]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(q)),
   );
@@ -95,7 +95,7 @@ export default function LposPage() {
                     <Mono style={{ fontSize: 12 }}>{lpo.lpoId || lpo._id.slice(-6)}</Mono>
                   </td>
                   <td>{leadName(typeof lpo.lead === 'object' ? lpo.lead : null)}</td>
-                  <td>{refName(lpo.user)}</td>
+                  <td>{lpoCreatedBy(lpo)}</td>
                   <td>
                     <Badge variant={lpoTermsVariant(lpo.terms)}>{termsShort(lpo.terms)}</Badge>
                   </td>

@@ -1,8 +1,12 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 import { notifySessionExpired } from '../utils/appFeedback';
+import { cachedRequest, invalidateRequestCache } from './requestCache';
 
 const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api/v1';
+
+/** Soft cap for “load everything” list calls — never unbounded. */
+export const LIST_CAP = 500;
 
 export const apiClient = axios.create({
   baseURL,
@@ -24,6 +28,7 @@ function handleSessionExpired(serverMessage?: string) {
 
   notifySessionExpired(serverMessage);
   useAuthStore.getState().logout();
+  invalidateRequestCache();
 
   window.setTimeout(() => {
     window.location.href = '/login?session=expired';
@@ -62,3 +67,27 @@ export function unwrap<T>(res: { data: ApiResponse<T> }): T {
   if (!res.data.status) throw new Error(res.data.message || 'Request failed');
   return res.data.data;
 }
+
+/** Standard list query — capped, optional lean projection for dropdowns. */
+export function listParams(search?: string, opts?: { lean?: boolean; limit?: number }) {
+  return {
+    limit: opts?.limit ?? LIST_CAP,
+    ...(opts?.lean ? { lean: 1 } : {}),
+    ...(search ? { search } : {}),
+  };
+}
+
+/** Cached GET helper keyed by path + params. */
+export function cachedGet<T>(
+  path: string,
+  params?: Record<string, unknown>,
+  ttlMs = 30_000,
+): Promise<T> {
+  const key = `${path}?${JSON.stringify(params || {})}`;
+  return cachedRequest(key, async () => {
+    const res = await apiClient.get(path, { params });
+    return unwrap<T>(res);
+  }, ttlMs);
+}
+
+export { invalidateRequestCache };

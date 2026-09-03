@@ -23,7 +23,13 @@ function customerLabel(c?: CrmCustomer | null) {
 export function FinanceModals() {
   const { isOpen, closeModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { displayName, roleLabel } = useApp();
-  const { products, invoices } = useLiveOptions();
+  const { products, invoices } = useLiveOptions(
+    isOpen('goods-return') ||
+      isOpen('credit-note') ||
+      isOpen('payment-refund') ||
+      isOpen('credit-note-apply') ||
+      isOpen('customer-statement'),
+  );
   const [returnRows, setReturnRows] = useState<ReturnRow[]>([{ id: 1 }]);
   const [savingReturn, setSavingReturn] = useState(false);
   const invoiceRef = useRef<HTMLSelectElement>(null);

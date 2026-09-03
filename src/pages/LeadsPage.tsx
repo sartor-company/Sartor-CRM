@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { ActionDropdown, Badge, Button, DataTable, InfoBanner, PageHead, SearchBar } from '../components/ui';
-import { crmApi, refName, type CrmLead } from '../api/crm';
+import { crmApi, refName, type CrmCustomer, type CrmLead } from '../api/crm';
 import { useModal } from '../context/ModalContext';
 import { useApiQuery } from '../hooks/useApiQuery';
 import { useRoleGates } from '../hooks/useRoleGates';
@@ -8,21 +8,45 @@ import { useTableFilter } from '../hooks/useTableFilter';
 import { formatDate } from '../utils/format';
 import { leadStatusVariant } from '../utils/statusBadges';
 
+const CONVERTED_STATUSES = new Set(['Closed Won', 'Payment Confirmed', 'Order Fulfilled']);
+
 function locationOf(lead: CrmLead) {
   return [lead.lga, lead.state].filter(Boolean).join(', ') || lead.address || '—';
+}
+
+function leadRefId(lead: CrmCustomer['lead']): string | null {
+  if (!lead) return null;
+  return typeof lead === 'string' ? lead : lead._id || null;
 }
 
 export default function LeadsPage() {
   const { openModal } = useModal();
   const { showCeoAdmin } = useRoleGates();
-  const { data, loading, error, reload } = useApiQuery(() => crmApi.listLeads(), []);
-  const leads = data ?? [];
+  const { data, loading, error, reload } = useApiQuery(async () => {
+    const [leads, customers] = await Promise.all([
+      crmApi.listLeads(),
+      crmApi.listCustomers().catch(() => [] as CrmCustomer[]),
+    ]);
+    return { leads, customers };
+  }, []);
 
   useEffect(() => {
     const onChange = () => void reload();
     window.addEventListener('crm-leads-changed', onChange);
     return () => window.removeEventListener('crm-leads-changed', onChange);
   }, [reload]);
+
+  const leads = useMemo(() => {
+    const all = data?.leads ?? [];
+    const convertedIds = new Set(
+      (data?.customers ?? [])
+        .map((c) => leadRefId(c.lead))
+        .filter((id): id is string => Boolean(id)),
+    );
+    return all.filter(
+      (l) => !convertedIds.has(l._id) && !CONVERTED_STATUSES.has(String(l.status || '')),
+    );
+  }, [data?.leads, data?.customers]);
 
   const { search, setSearch, filtered } = useTableFilter(leads, '', (row, q) =>
     [row.name, locationOf(row), row.status, refName(row.user), row.type]
@@ -139,3 +163,4 @@ export default function LeadsPage() {
     </>
   );
 }
+

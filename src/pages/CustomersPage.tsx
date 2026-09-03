@@ -1,6 +1,8 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button, DataTable, InfoBanner, Mono, PageHead, SearchBar } from '../components/ui';
 import { Icon } from '../components/ui/Icon';
+import { RoleGate } from '../components/ui/RoleGate';
+import { SartorModal } from '../components/ui/SartorModal';
 import {
   crmApi,
   leadCoords,
@@ -13,8 +15,10 @@ import { useLocation } from '../context/LocationContext';
 import { useModal } from '../context/ModalContext';
 import { useToast } from '../context/ToastContext';
 import { useApiQuery } from '../hooks/useApiQuery';
+import { useRoleGates } from '../hooks/useRoleGates';
 import { useTableFilter } from '../hooks/useTableFilter';
 import { formatDate, formatNaira, num } from '../utils/format';
+import { FG, ModalFooterActions } from '../modals/helpers';
 
 function leadOf(c: CrmCustomer) {
   return typeof c.lead === 'object' && c.lead ? c.lead : null;
@@ -66,6 +70,11 @@ function CustomerGpsButton({ customer }: { customer: CrmCustomer }) {
 
 export default function CustomersPage() {
   const { openModal } = useModal();
+  const { showCustEdit } = useRoleGates();
+  const { showToast } = useToast();
+  const [editCustomer, setEditCustomer] = useState<CrmCustomer | null>(null);
+  const [editStatus, setEditStatus] = useState('Active');
+  const [saving, setSaving] = useState(false);
   const { data, loading, error, reload } = useApiQuery(async () => {
     const [customers, invoices, lpos] = await Promise.all([
       crmApi.listCustomers(),
@@ -80,8 +89,6 @@ export default function CustomersPage() {
     window.addEventListener('crm-leads-changed', onChange);
     return () => window.removeEventListener('crm-leads-changed', onChange);
   }, [reload]);
-
-  const { showToast } = useToast();
 
   const customers = useMemo(() => {
     const rows = data?.customers ?? [];
@@ -204,6 +211,18 @@ export default function CustomersPage() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <RoleGate show={showCustEdit}>
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => {
+                            setEditCustomer(c);
+                            setEditStatus(c.status === 'In-active' ? 'In-active' : 'Active');
+                          }}
+                        >
+                          Edit
+                        </Button>
+                      </RoleGate>
                       <Button
                         variant="outline"
                         size="xs"
@@ -234,6 +253,49 @@ export default function CustomersPage() {
           )}
         </tbody>
       </DataTable>
+
+      <SartorModal
+        id="edit-customer"
+        open={Boolean(editCustomer)}
+        onClose={() => setEditCustomer(null)}
+        title={editCustomer ? `Edit Customer — ${leadName(leadOf(editCustomer))}` : 'Edit Customer'}
+        subtitle="Only CEO and Admin can change customer records"
+        size="narrow"
+        footer={
+          <ModalFooterActions onCancel={() => setEditCustomer(null)}>
+            <Button
+              variant="green"
+              disabled={saving || !editCustomer}
+              onClick={async (e) => {
+                if (!editCustomer || saving) return;
+                const btn = e.currentTarget;
+                setSaving(true);
+                btn.disabled = true;
+                try {
+                  await crmApi.updateCustomer(editCustomer._id, { status: editStatus });
+                  showToast('Customer updated.', 'ok');
+                  setEditCustomer(null);
+                  void reload();
+                } catch (err) {
+                  showToast(err instanceof Error ? err.message : 'Update failed', 'err');
+                } finally {
+                  setSaving(false);
+                  btn.disabled = false;
+                }
+              }}
+            >
+              Save Changes
+            </Button>
+          </ModalFooterActions>
+        }
+      >
+        <FG label="Status" full>
+          <select className="sel" value={editStatus} onChange={(e) => setEditStatus(e.target.value)}>
+            <option value="Active">Active</option>
+            <option value="In-active">In-active</option>
+          </select>
+        </FG>
+      </SartorModal>
     </>
   );
 }

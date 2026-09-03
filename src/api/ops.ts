@@ -1,4 +1,4 @@
-import { apiClient, unwrap } from './client';
+import { apiClient, cachedGet, listParams, unwrap, invalidateRequestCache } from './client';
 
 export interface OpsWarehouse {
   _id: string;
@@ -141,8 +141,9 @@ function listData<T>(res: { data: { message: string; status: boolean; data: { da
 
 export const opsApi = {
   listWarehouses: async () => {
-    const res = await apiClient.get('/warehouses');
-    return listData<OpsWarehouse>(res);
+    return cachedGet<{ data: OpsWarehouse[] }>('/warehouses', listParams(undefined, { lean: true }), 45_000).then(
+      (d) => d.data ?? [],
+    );
   },
   getWarehouseInventory: async (id: string) => {
     const res = await apiClient.get(`/warehouse/${id}/inventory`);
@@ -171,27 +172,33 @@ export const opsApi = {
     status?: string;
   }) => {
     const res = await apiClient.post('/warehouse', body);
+    invalidateRequestCache('/warehouses');
     return unwrap(res);
   },
 
   listDrivers: async () => {
-    const res = await apiClient.get('/drivers');
-    return listData<OpsDriver>(res);
+    return cachedGet<{ data: OpsDriver[] }>('/drivers', listParams(undefined, { lean: true }), 45_000).then(
+      (d) => d.data ?? [],
+    );
   },
   createDriver: async (body: Record<string, unknown>) => {
     const res = await apiClient.post('/driver', body);
+    invalidateRequestCache('/drivers');
     return unwrap(res);
   },
   updateDriver: async (id: string, body: Record<string, unknown>) => {
     const res = await apiClient.put(`/driver/edit/${id}`, body);
+    invalidateRequestCache('/drivers');
     return unwrap(res);
   },
   assignDriverLpo: async (driverId: string, lpoId: string) => {
     const res = await apiClient.post('/driver/assign-lpo', { driverId, lpoId });
+    invalidateRequestCache('/drivers');
     return unwrap(res);
   },
   unassignDriver: async (id: string) => {
     const res = await apiClient.post(`/driver/${id}/unassign`);
+    invalidateRequestCache('/drivers');
     return unwrap(res);
   },
 

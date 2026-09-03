@@ -41,10 +41,26 @@ function productLicence(p: ApiProduct) {
   return p.licenceNumber || p.regulatoryLicences?.[0]?.number || '—';
 }
 
+function toDateInputValue(value?: number | string | null): string {
+  if (value == null || value === '') return '';
+  const d = typeof value === 'number' ? new Date(value) : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return '';
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function ProductModals() {
   const { isOpen, closeModal, openModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { showAddProduct, showProdEdit, showProdStock, showCeoBatch } = useRoleGates();
-  const { warehouses } = useLiveOptions();
+  const { warehouses } = useLiveOptions(
+    isOpen('pack-lpo') ||
+      isOpen('add-batch') ||
+      isOpen('add-product') ||
+      isOpen('edit-product') ||
+      isOpen('view-product'),
+  );
   const packWarehouseRef = useRef<HTMLSelectElement>(null);
   const addNameRef = useRef<HTMLInputElement>(null);
   const addMfgRef = useRef<HTMLInputElement>(null);
@@ -70,6 +86,9 @@ export function ProductModals() {
     getPayload<{ product?: ApiProduct }>('edit-product')?.product ?? viewProduct;
   const approveProduct = getPayload<{ product?: ApiProduct }>('approve-stock')?.product;
   const packPayload = getPayload<{ lpo?: OpsLpoRow; warehouseId?: string }>('pack-lpo');
+  const batchPayload = getPayload<{ product?: ApiProduct; batch?: ApiBatch }>('add-batch');
+  const editBatch = batchPayload?.batch;
+  const batchProduct = batchPayload?.product ?? viewProduct ?? editProduct;
   const [detailProduct, setDetailProduct] = useState<ApiProduct | null>(null);
 
   const viewOpen = isOpen('view-product');
@@ -482,7 +501,7 @@ export function ProductModals() {
                                   label: 'Edit Batch',
                                   onClick: () => {
                                     closeModal('view-product');
-                                    openModal('add-batch', { product: shown });
+                                    openModal('add-batch', { product: shown, batch: b });
                                   },
                                 },
                                 {
@@ -700,10 +719,10 @@ export function ProductModals() {
         id="add-batch"
         open={isOpen('add-batch')}
         onClose={() => closeModal('add-batch')}
-        title="Add / Edit Inventory Batch"
+        title={editBatch ? 'Edit Inventory Batch' : 'Add Inventory Batch'}
         subtitle={
-          viewProduct || editProduct
-            ? `${productSku((viewProduct || editProduct)!)} — ${(viewProduct || editProduct)!.productName || 'Product'}`
+          batchProduct
+            ? `${productSku(batchProduct)} — ${batchProduct.productName || 'Product'}`
             : 'Select a product first'
         }
         footer={
@@ -717,42 +736,95 @@ export function ProductModals() {
           </ModalFooterActions>
         }
       >
-        <FRow>
-          <FG label="Batch Number *" className="w50">
-            <input className="inp" placeholder="Batch number" />
+        <div key={editBatch?._id || 'new-batch'}>
+          <FRow>
+            <FG label="Batch Number *" className="w50">
+              <input
+                className="inp"
+                placeholder="Batch number"
+                defaultValue={editBatch?.batchNumber || ''}
+              />
+            </FG>
+            <FG label="Quantity Received *" className="w50">
+              <input
+                className="inp"
+                type="number"
+                placeholder="0"
+                defaultValue={
+                  editBatch
+                    ? String(editBatch.quantityReceived ?? editBatch.quantity ?? '')
+                    : ''
+                }
+              />
+            </FG>
+          </FRow>
+          <FRow>
+            <FG label="Manufacturing Date *" className="w50">
+              <input
+                className="inp"
+                type="date"
+                defaultValue={toDateInputValue(editBatch?.manufactureDate)}
+              />
+            </FG>
+            <FG label="Expiry Date *" className="w50">
+              <input
+                className="inp"
+                type="date"
+                defaultValue={toDateInputValue(editBatch?.expiryDate)}
+              />
+            </FG>
+          </FRow>
+          <SDivLabel>Supplier & Purchase Details</SDivLabel>
+          <FRow>
+            <FG label="Supplier Name *" className="w50">
+              <input
+                className="inp"
+                placeholder="Supplier name"
+                defaultValue={
+                  editBatch?.supplier && typeof editBatch.supplier === 'object'
+                    ? editBatch.supplier.name || ''
+                    : ''
+                }
+              />
+            </FG>
+            <FG label="Supplier Invoice Ref" className="w50">
+              <input
+                className="inp"
+                placeholder="Supplier invoice number"
+                defaultValue={editBatch?.invoiceNumber || ''}
+              />
+            </FG>
+          </FRow>
+          <FRow>
+            <FG label="Purchase Price / Unit (₦)" className="w50">
+              <input
+                className="inp"
+                type="number"
+                placeholder="0.00"
+                defaultValue={
+                  editBatch?.supplyPrice != null && editBatch.supplyPrice !== ''
+                    ? String(editBatch.supplyPrice)
+                    : ''
+                }
+              />
+            </FG>
+            <FG label="Selling Price Override (₦)" className="w50">
+              <input
+                className="inp"
+                type="number"
+                placeholder="Leave blank for default"
+                defaultValue={
+                  editBatch?.sellingPrice != null && editBatch.sellingPrice !== ''
+                    ? String(editBatch.sellingPrice)
+                    : ''
+                }
+              />
+            </FG>
+          </FRow>
+          <FG label="Notes" full>
+            <textarea className="ta" rows={2} placeholder="Storage conditions, quality notes…" />
           </FG>
-          <FG label="Quantity Received *" className="w50">
-            <input className="inp" type="number" placeholder="0" />
-          </FG>
-        </FRow>
-        <FRow>
-          <FG label="Manufacturing Date *" className="w50">
-            <input className="inp" type="date" />
-          </FG>
-          <FG label="Expiry Date *" className="w50">
-            <input className="inp" type="date" />
-          </FG>
-        </FRow>
-        <SDivLabel>Supplier & Purchase Details</SDivLabel>
-        <FRow>
-          <FG label="Supplier Name *" className="w50">
-            <input className="inp" placeholder="Supplier name" />
-          </FG>
-          <FG label="Supplier Invoice Ref" className="w50">
-            <input className="inp" placeholder="Supplier invoice number" />
-          </FG>
-        </FRow>
-        <FRow>
-          <FG label="Purchase Price / Unit (₦)" className="w50">
-            <input className="inp" type="number" placeholder="0.00" />
-          </FG>
-          <FG label="Selling Price Override (₦)" className="w50">
-            <input className="inp" type="number" placeholder="Leave blank for default" />
-          </FG>
-        </FRow>
-        <FG label="Notes" full>
-          <textarea className="ta" rows={2} placeholder="Storage conditions, quality notes…" />
-        </FG>
+        </div>
       </SartorModal>
 
       <SartorModal

@@ -47,7 +47,15 @@ function initials(name: string) {
 export function DriverModals() {
   const { isOpen, closeModal, openModal, getPayload, handleSubmit, showToast } = useModalActions();
   const { showOnboardDriver, showDriverEdit, showDriverWh } = useRoleGates();
-  const { drivers, warehouses: liveWarehouses } = useLiveOptions();
+  const { drivers, warehouses: liveWarehouses } = useLiveOptions(
+    isOpen('onboard-driver') ||
+      isOpen('view-driver') ||
+      isOpen('assign-driver') ||
+      isOpen('assign-driver-warehouse') ||
+      isOpen('driver-pickup') ||
+      isOpen('delivery-confirm') ||
+      isOpen('qr-delivery-confirm'),
+  );
   const [warehouses, setWarehouses] = useState<OpsWarehouse[]>([]);
   const [saving, setSaving] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);

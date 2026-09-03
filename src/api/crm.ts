@@ -1,4 +1,4 @@
-import { apiClient, unwrap } from './client';
+import { apiClient, cachedGet, listParams, unwrap, invalidateRequestCache } from './client';
 
 export type NamedRef = { _id: string; fullName?: string } | string | null | undefined;
 
@@ -49,6 +49,26 @@ export interface CrmLpo {
   creationDateTime?: number;
   lead?: CrmLead | string | null;
   user?: NamedRef;
+  admin?: NamedRef;
+  products?: Array<{
+    _id?: string;
+    quantity?: number;
+    unitPrice?: number;
+    price?: number;
+    amount?: number;
+    product?: {
+      _id?: string;
+      productName?: string;
+      sku?: string;
+      skuCode?: string;
+      productSku?: string;
+      productId?: string;
+      barcodeNumber?: string;
+      price?: number;
+      unitPrice?: number;
+      sellingPrice?: number;
+    } | string | null;
+  }>;
 }
 
 export interface CrmInvoice {
@@ -98,14 +118,18 @@ export interface CommissionRow extends CrmInvoice {
   earned?: number;
 }
 
-function listParams(search?: string) {
-  return { limit: 'all' as const, ...(search ? { search } : {}) };
-}
-
 export function refName(ref: NamedRef): string {
   if (!ref) return '—';
   if (typeof ref === 'string') return ref;
   return ref.fullName || '—';
+}
+
+/** Prefer staff creator; fall back to account owner when CEO/admin created the LPO. */
+export function lpoCreatedBy(lpo: { user?: NamedRef; admin?: NamedRef } | null | undefined): string {
+  if (!lpo) return '—';
+  const byUser = refName(lpo.user);
+  if (byUser !== '—') return byUser;
+  return refName(lpo.admin);
 }
 
 export function leadName(lead: CrmLead | string | null | undefined): string {
@@ -130,13 +154,14 @@ export function leadCoords(
 
 export const crmApi = {
   dashboard: async () => {
-    const res = await apiClient.get('/dashboard');
-    return unwrap<DashboardSummary>(res);
+    return cachedGet<DashboardSummary>('/dashboard', undefined, 20_000);
   },
 
-  listLeads: async (search?: string) => {
-    const res = await apiClient.get('/leads', { params: listParams(search) });
-    const data = unwrap<{ leads: CrmLead[] }>(res);
+  listLeads: async (search?: string, opts?: { lean?: boolean }) => {
+    const data = await cachedGet<{ leads: CrmLead[] }>(
+      '/leads',
+      listParams(search, opts),
+    );
     return data.leads ?? [];
   },
 
@@ -162,22 +187,28 @@ export const crmApi = {
     contact: Array<{ name: string; email?: string; phone?: string; role?: string }>;
   }) => {
     const res = await apiClient.post('/lead', body);
+    invalidateRequestCache('/leads');
     return unwrap<{ lead: CrmLead; contacts: unknown[] }>(res);
   },
 
   updateLeadStatus: async (id: string, status: string) => {
     const res = await apiClient.put('/lead/status/update', { id, status });
+    invalidateRequestCache('/leads');
+    invalidateRequestCache('/customers');
     return unwrap(res);
   },
 
   updateLead: async (id: string, body: Record<string, unknown>) => {
     const res = await apiClient.put(`/lead/edit/${id}`, body);
+    invalidateRequestCache('/leads');
     return unwrap(res);
   },
 
-  listCustomers: async (search?: string) => {
-    const res = await apiClient.get('/customers', { params: listParams(search) });
-    const data = unwrap<{ customers: CrmCustomer[] }>(res);
+  listCustomers: async (search?: string, opts?: { lean?: boolean }) => {
+    const data = await cachedGet<{ customers: CrmCustomer[] }>(
+      '/customers',
+      listParams(search, opts),
+    );
     return data.customers ?? [];
   },
 
@@ -187,35 +218,55 @@ export const crmApi = {
     product: Array<{ product: string; quantity: number }>;
   }) => {
     const res = await apiClient.post('/lpo', body);
+    invalidateRequestCache('/lpos');
+    invalidateRequestCache('/invoices');
+    invalidateRequestCache('/dashboard');
     return unwrap<{ lpo?: CrmLpo } & Record<string, unknown>>(res);
   },
 
-  listLpos: async (search?: string) => {
-    const res = await apiClient.get('/lpos', { params: listParams(search) });
-    const data = unwrap<{ lpos: CrmLpo[] }>(res);
+  listLpos: async (search?: string, opts?: { lean?: boolean }) => {
+    const data = await cachedGet<{ lpos: CrmLpo[] }>(
+      '/lpos',
+      listParams(search, opts),
+    );
     return data.lpos ?? [];
   },
 
-  listInvoices: async (search?: string) => {
-    const res = await apiClient.get('/invoices', { params: listParams(search) });
-    const data = unwrap<{ invoices: CrmInvoice[] }>(res);
+  getLpo: async (id: string) => {
+    const res = await apiClient.get(`/lpo/${id}`);
+    return unwrap<CrmLpo>(res);
+  },
+
+  updateCustomer: async (id: string, body: { status?: string }) => {
+    const res = await apiClient.put(`/customer/edit/${id}`, body);
+    invalidateRequestCache('/customers');
+    return unwrap(res);
+  },
+
+  listInvoices: async (search?: string, opts?: { lean?: boolean }) => {
+    const data = await cachedGet<{ invoices: CrmInvoice[] }>(
+      '/invoices',
+      listParams(search, opts),
+    );
     return data.invoices ?? [];
   },
 
   updateInvoiceStatus: async (id: string, status: string) => {
     const res = await apiClient.put('/invoice/status/update', { id, status });
+    invalidateRequestCache('/invoices');
     return unwrap(res);
   },
 
   getCommissionConfig: async () => {
-    const res = await apiClient.get('/commission');
-    const data = unwrap<{ data: CommissionConfig }>(res);
+    const data = await cachedGet<{ data: CommissionConfig }>('/commission', undefined, 60_000);
     return data.data;
   },
 
   listUserCommissions: async (userId: string) => {
-    const res = await apiClient.get(`/commissions/${userId}`, { params: { limit: 'all' } });
-    const data = unwrap<{ commission: CommissionRow[] }>(res);
+    const data = await cachedGet<{ commission: CommissionRow[] }>(
+      `/commissions/${userId}`,
+      listParams(),
+    );
     return data.commission ?? [];
   },
 };
